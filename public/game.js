@@ -1,0 +1,538 @@
+// ---- Init ----
+const socket = io();
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const params = new URLSearchParams(window.location.search);
+const playerName = params.get('name') || 'Don';
+const gridSize   = params.get('size') || 'medium';
+const vsComputer = !!params.get('vsComputer');
+const roomId     = window.location.pathname.split('/').pop();
+
+document.getElementById('roomCode').textContent = roomId;
+
+// ---- Theme ----
+const THEME = {
+  keyLocations: [
+    { id: 'bank',       emoji: '🏦', name: 'De Bank',       glow: '#e8a020' },
+    { id: 'casino',     emoji: '🏦', name: 'Het Casino',    glow: '#e8a020' },
+    { id: 'haven',      emoji: '🏦', name: 'De Haven',      glow: '#e8a020' },
+    { id: 'stadhuis',   emoji: '🏦', name: 'Het Stadhuis',  glow: '#e8a020' },
+    { id: 'gevangenis', emoji: '🏦', name: 'De Gevangenis', glow: '#e8a020' },
+  ],
+};
+
+// ---- Specials info (for reveal popup) ----
+const SPECIALS_INFO = {
+  hitman:  { emoji: '🚔', name: 'Politie-inval',  myDesc: 'Tegenstander slaat zijn beurt over',           oppDesc: 'Jij slaat je volgende beurt over' },
+  bribe:   { emoji: '💸', name: 'Smeergeld',       myDesc: 'Jij speelt direct nog een beurt',              oppDesc: 'Tegenstander speelt nog een beurt' },
+  bomb:    { emoji: '🔧', name: 'Sabotage',        myDesc: 'Kies een lijn van de tegenstander om te verwijderen', oppDesc: 'Tegenstander verwijdert een van jouw lijnen' },
+  rat:     { emoji: '🐀', name: 'Rat',             myDesc: 'Tegenstander mist zijn volgende special',      oppDesc: 'Jij mist je volgende special' },
+  getaway: { emoji: '🚗', name: 'Vluchtauto',      myDesc: 'Beschermd tegen het volgende negatieve special', oppDesc: 'Tegenstander heeft een schild' },
+};
+
+// ---- City map palette ----
+const MAP = {
+  bg:      '#1c2030',   // street / asphalt color
+  terrain: {
+    alley:    { fill: '#0e1208', emojis: ['🌳','🌲','🌿','🌳','🌲'] },
+    street:   { fill: '#12141e', emojis: ['🏠','🏡','🏘️','🏠','🏡'] },
+    district: { fill: '#0f1220', emojis: ['🏢','🏬','🏪','🏣','🏨'] },
+  },
+  dot: '#2c3248',
+};
+
+const SI = 3; // street inset per side (street width = SI*2 = 6px)
+
+// ---- State ----
+let room     = null;
+let myId     = null;
+let waitingForBomb = false;
+let hoveredLine    = null;
+let rafId          = null;
+let lastTouchLine  = null;
+
+// ---- Layout ----
+const DOT_R = 4;
+let CELL_SIZE = 72;
+let OFFSET_X  = 24;
+let OFFSET_Y  = 24;
+
+// ---- Join room ----
+socket.on('connect', () => {
+  myId = socket.id;
+  socket.emit('join-room', { roomId, playerName, gridSize, vsComputer });
+});
+
+// ---- Room updates ----
+socket.on('room-update', (updatedRoom) => {
+  const wasWaiting = !room || room.status === 'waiting';
+
+  // Detect special pickup before updating room state
+  if (room?.grid && updatedRoom.grid) {
+    for (let i = 0; i < updatedRoom.grid.length; i++) {
+      const cur = updatedRoom.grid[i], old = room.grid[i];
+      if (!old?.owner && cur?.owner && cur.special) {
+        showSpecialReveal(cur.special, cur.owner === myId);
+        break;
+      }
+    }
+  }
+
+  updateLog(updatedRoom);
+  room = updatedRoom;
+  myId = socket.id;
+  updateUI();
+  drawBoard();
+
+  if (wasWaiting && room.status === 'playing') showToast('De stad ligt open. Maak je zet.', 'info');
+  if (room.status === 'finished') showGameOver();
+
+  waitingForBomb = room.bombTarget === myId;
+
+  if (waitingForBomb) {
+    setHint('🔧 Kies een lijn van de tegenstander — die gaat eruit.', 'danger');
+  } else if (room.turn === myId && room.status === 'playing') {
+    setHint('Jouw beurt — trek een grens.', 'my-turn');
+  } else if (room.status === 'playing') {
+    setHint(room.vsComputer ? '🤖 Don Kraken denkt na...' : 'Tegenstander is aan zet...', 'wait');
+  } else if (room.status === 'waiting') {
+    setHint('Wachten op tweede speler...', 'wait');
+  } else {
+    setHint('', '');
+  }
+
+  if (room.status === 'playing') startPulse();
+  else stopPulse();
+});
+
+socket.on('room-full', () => { alert('Kamer vol.'); window.location.href = '/'; });
+socket.on('player-disconnected', () => showToast('⚠️ Tegenstander verbroken.', 'warn'));
+socket.on('rematch-vote', ({ votes }) => {
+  document.getElementById('rematchStatus').textContent = `${votes}/2 willen herspelen...`;
+});
+
+// ---- Animation loop ----
+function startPulse() {
+  if (rafId) return;
+  function tick() {
+    if (!room || room.status !== 'playing') { rafId = null; return; }
+    drawBoard();
+    rafId = requestAnimationFrame(tick);
+  }
+  rafId = requestAnimationFrame(tick);
+}
+function stopPulse() {
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+}
+
+// ---- UI ----
+function updateUI() {
+  if (!room) return;
+  const p1 = room.players[0], p2 = room.players[1];
+  if (p1) {
+    document.getElementById('p1name').textContent = p1.name;
+    document.getElementById('p1card').style.borderColor = p1.color;
+    document.getElementById('p1turn').style.opacity = room.turn === p1.id ? '1' : '0';
+    renderLocationBar(p1.id, 'p1locs');
+  }
+  if (p2) {
+    document.getElementById('p2name').textContent = p2.name;
+    document.getElementById('p2card').style.borderColor = p2.color;
+    document.getElementById('p2turn').style.opacity = room.turn === p2.id ? '1' : '0';
+    renderLocationBar(p2.id, 'p2locs');
+  }
+  const statusEl = document.getElementById('statusBadge');
+  if (room.status === 'waiting')  { statusEl.textContent = '⏳ Wachten';   statusEl.className = 'status-badge waiting'; }
+  if (room.status === 'playing')  { statusEl.textContent = '⚔️ In strijd'; statusEl.className = 'status-badge playing'; }
+  if (room.status === 'finished') { statusEl.textContent = '🏁 Afgelopen'; statusEl.className = 'status-badge finished'; }
+
+  const powerEl = document.getElementById('powerDisplay');
+  const powerText = document.getElementById('powerText');
+  let msg = '';
+  if (room.shieldedPlayer === myId) msg = '🚗 Vluchtauto actief — volgende aanval mislukt';
+  else if (room.ratTarget && room.ratTarget !== myId) msg = '🐀 Rat actief — tegenstander mist volgende special';
+  powerEl.style.display = msg ? 'block' : 'none';
+  if (msg) powerText.textContent = msg;
+}
+
+function renderLocationBar(playerId, elementId) {
+  if (!room) return;
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const owned = new Set(room.grid.filter(c => c.isKeyLocation && c.owner === playerId).map(c => c.keyDef.id));
+  el.innerHTML = THEME.keyLocations.map(kd =>
+    `<span class="loc-pip${owned.has(kd.id) ? ' owned' : ''}" title="${kd.name}">${owned.has(kd.id) ? '🏦' : '◌'}</span>`
+  ).join('');
+}
+
+// ---- Special reveal popup ----
+function showSpecialReveal(special, isMySpecial) {
+  const info = SPECIALS_INFO[special.id];
+  if (!info) return;
+  const el = document.getElementById('specialReveal');
+  const desc = isMySpecial ? info.myDesc : info.oppDesc;
+  el.innerHTML = `
+    <div class="sr-emoji">${info.emoji}</div>
+    <div class="sr-body">
+      <div class="sr-label">${isMySpecial ? 'Jij pakt' : 'Tegenstander pakt'}</div>
+      <div class="sr-name">${info.name}</div>
+      <div class="sr-desc">${desc}</div>
+    </div>
+  `;
+  el.className = `special-reveal ${isMySpecial ? 'sr-mine' : 'sr-opp'} show`;
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+// ---- PRNG ----
+function cellPrng(row, col) {
+  const seed = (row * 97 + col * 53 + 7) | 0;
+  return (n) => (Math.imul(seed + n * 1664525, 1013904223) >>> 0) / 0xffffffff;
+}
+
+// ---- Canvas sizing ----
+function resizeCanvas() {
+  if (!room) return;
+  const size    = room.size;
+  const mobile  = window.innerWidth < 700;
+  const maxW    = mobile ? window.innerWidth - 12 : Math.min(window.innerWidth - 340, 720);
+  const maxH    = mobile ? window.innerHeight - 170 : window.innerHeight - 120;
+  const available = Math.min(maxW, maxH);
+  CELL_SIZE = Math.floor((available - 48) / size);
+  CELL_SIZE = Math.max(38, Math.min(CELL_SIZE, 96));
+  OFFSET_X  = mobile ? 8 : 24;
+  OFFSET_Y  = mobile ? 8 : 24;
+  canvas.width  = size * CELL_SIZE + OFFSET_X * 2;
+  canvas.height = size * CELL_SIZE + OFFSET_Y * 2;
+}
+
+// ---- Draw board ----
+function drawBoard() {
+  if (!room) return;
+  resizeCanvas();
+  const { size, grid, lines } = room;
+  const { hLines, vLines }    = lines;
+
+  // Streets (background)
+  ctx.fillStyle = MAP.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // City blocks (inset from streets)
+  for (let row = 0; row < size; row++)
+    for (let col = 0; col < size; col++)
+      drawCityBlock(grid[row * size + col], OFFSET_X + col * CELL_SIZE, OFFSET_Y + row * CELL_SIZE, CELL_SIZE);
+
+  // Owned / hover territory lines
+  for (let row = 0; row <= size; row++)
+    for (let col = 0; col < size; col++) {
+      const owner = hLines[row]?.[col];
+      if (owner) {
+        drawLine('h', row, col, room.players.find(p => p.id === owner)?.color || '#fff', false);
+      } else {
+        const isHov = hoveredLine?.type === 'h' && hoveredLine.row === row && hoveredLine.col === col;
+        if (isHov) drawLine('h', row, col, getMyColor(), true);
+      }
+    }
+  for (let row = 0; row < size; row++)
+    for (let col = 0; col <= size; col++) {
+      const owner = vLines[row]?.[col];
+      if (owner) {
+        drawLine('v', row, col, room.players.find(p => p.id === owner)?.color || '#fff', false);
+      } else {
+        const isHov = hoveredLine?.type === 'v' && hoveredLine.row === row && hoveredLine.col === col;
+        if (isHov) drawLine('v', row, col, getMyColor(), true);
+      }
+    }
+
+  // Intersection dots
+  for (let row = 0; row <= size; row++)
+    for (let col = 0; col <= size; col++) {
+      const x = OFFSET_X + col * CELL_SIZE, y = OFFSET_Y + row * CELL_SIZE;
+      ctx.fillStyle = MAP.dot;
+      ctx.beginPath(); ctx.arc(x, y, DOT_R, 0, Math.PI * 2); ctx.fill();
+    }
+}
+
+function drawCityBlock(cell, x, y, cs) {
+  const prng = cellPrng(cell.row, cell.col);
+  const tm   = MAP.terrain[cell.terrain] || MAP.terrain.district;
+
+  // Block fill (inset = visible street around edge)
+  ctx.fillStyle = tm.fill;
+  ctx.fillRect(x + SI, y + SI, cs - SI * 2, cs - SI * 2);
+
+  // Owner wash
+  if (cell.owner) {
+    const owner = room.players.find(p => p.id === cell.owner);
+    if (owner) {
+      ctx.fillStyle = hexToRgba(owner.color, 0.24);
+      ctx.fillRect(x + SI, y + SI, cs - SI * 2, cs - SI * 2);
+    }
+  }
+
+  // Dimmed background emoji
+  if (!cell.isKeyLocation && !cell.special) {
+    const em = tm.emojis[Math.floor(prng(1) * tm.emojis.length)];
+    ctx.globalAlpha = cell.owner ? 0.20 : 0.07;
+    ctx.font = `${Math.floor(cs * 0.42)}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(em, x + cs / 2, y + cs / 2);
+    ctx.globalAlpha = 1;
+  }
+
+  // Special emoji
+  if (cell.special && !cell.owner) {
+    ctx.globalAlpha = 0.90;
+    ctx.font = `${Math.floor(cs * 0.38)}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(cell.special.emoji, x + cs / 2, y + cs / 2);
+    ctx.globalAlpha = 1;
+  }
+
+  // Key location — bright bank, no border, no label
+  if (cell.isKeyLocation) {
+    if (cell.owner) {
+      const owner = room.players.find(p => p.id === cell.owner);
+      if (owner) {
+        ctx.fillStyle = hexToRgba(owner.color, 0.28);
+        ctx.fillRect(x + SI, y + SI, cs - SI * 2, cs - SI * 2);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = `${Math.floor(cs * 0.55)}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('🏦', x + cs / 2, y + cs / 2);
+  }
+}
+
+function drawLine(type, row, col, color, ghost) {
+  const x1 = OFFSET_X + col * CELL_SIZE;
+  const y1 = OFFSET_Y + row * CELL_SIZE;
+
+  // Ghost (hover) = same thickness as placed, just lower opacity
+  ctx.strokeStyle = ghost ? hexToRgba(color, 0.5) : color;
+  ctx.lineWidth   = 6;
+  ctx.lineCap     = 'square';
+  ctx.shadowColor = ghost ? 'transparent' : color;
+  ctx.shadowBlur  = ghost ? 0 : 12;
+
+  if (waitingForBomb && !ghost) {
+    ctx.strokeStyle = '#ff3322';
+    ctx.shadowColor = '#ff5500';
+    ctx.shadowBlur  = 14;
+  }
+
+  ctx.beginPath();
+  if (type === 'h') {
+    ctx.moveTo(x1, y1); ctx.lineTo(x1 + CELL_SIZE, y1);
+  } else {
+    ctx.moveTo(x1, y1); ctx.lineTo(x1, y1 + CELL_SIZE);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ---- Canvas interaction ----
+function snapZone() { return CELL_SIZE * (isTouchDevice() ? 0.44 : 0.30); }
+function isTouchDevice() { return window.matchMedia('(pointer: coarse)').matches; }
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!room || room.status !== 'playing') return;
+  if (room.turn !== myId && !waitingForBomb) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (e.clientY - rect.top)  * (canvas.height / rect.height);
+  const prev = JSON.stringify(hoveredLine);
+  hoveredLine = getLineAt(mx, my);
+  if (JSON.stringify(hoveredLine) !== prev && !rafId) drawBoard();
+});
+
+canvas.addEventListener('mouseleave', () => { hoveredLine = null; if (!rafId) drawBoard(); });
+
+// Touch support
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!room || room.status !== 'playing') return;
+  if (room.turn !== myId && !waitingForBomb) return;
+  const touch = e.touches[0];
+  const rect  = canvas.getBoundingClientRect();
+  const mx = (touch.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (touch.clientY - rect.top)  * (canvas.height / rect.height);
+  const prev = JSON.stringify(hoveredLine);
+  hoveredLine   = getLineAt(mx, my);
+  lastTouchLine = hoveredLine;
+  if (JSON.stringify(hoveredLine) !== prev && !rafId) drawBoard();
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  const line = lastTouchLine;
+  lastTouchLine = null;
+  hoveredLine   = null;
+  if (!room || room.status !== 'playing') { if (!rafId) drawBoard(); return; }
+  if (!line) { if (!rafId) drawBoard(); return; }
+
+  if (waitingForBomb) {
+    const { hLines, vLines } = room.lines;
+    const ownerId = line.type === 'h' ? hLines[line.row]?.[line.col] : vLines[line.row]?.[line.col];
+    if (ownerId && ownerId !== myId) {
+      socket.emit('bomb-remove', { roomId, lineType: line.type, row: line.row, col: line.col });
+      waitingForBomb = false;
+    }
+    if (!rafId) drawBoard(); return;
+  }
+
+  if (room.turn !== myId) { if (!rafId) drawBoard(); return; }
+  const { hLines, vLines } = room.lines;
+  if (line.type === 'h' && hLines[line.row]?.[line.col]) { if (!rafId) drawBoard(); return; }
+  if (line.type === 'v' && vLines[line.row]?.[line.col]) { if (!rafId) drawBoard(); return; }
+  if (!socket.connected) return;
+  socket.emit('place-line', { roomId, lineType: line.type, row: line.row, col: line.col });
+  if (!rafId) drawBoard();
+}, { passive: false });
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect  = canvas.getBoundingClientRect();
+  const mx = (touch.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (touch.clientY - rect.top)  * (canvas.height / rect.height);
+  hoveredLine   = getLineAt(mx, my);
+  lastTouchLine = hoveredLine;
+  if (!rafId) drawBoard();
+}, { passive: false });
+
+function handleBoardClick(e) {
+  if (!room || room.status !== 'playing') return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (e.clientY - rect.top)  * (canvas.height / rect.height);
+  if (room.turn !== myId && !waitingForBomb) return;
+
+  const line = hoveredLine || getLineAt(mx, my, CELL_SIZE * 0.44);
+  if (!line) return;
+
+  if (waitingForBomb) {
+    const { hLines, vLines } = room.lines;
+    const ownerId = line.type === 'h' ? hLines[line.row]?.[line.col] : vLines[line.row]?.[line.col];
+    if (ownerId && ownerId !== myId) {
+      socket.emit('bomb-remove', { roomId, lineType: line.type, row: line.row, col: line.col });
+      waitingForBomb = false;
+    }
+    return;
+  }
+
+  if (room.turn !== myId) return;
+  const { hLines, vLines } = room.lines;
+  if (line.type === 'h' && hLines[line.row]?.[line.col]) return;
+  if (line.type === 'v' && vLines[line.row]?.[line.col]) return;
+  if (!socket.connected) return;
+  socket.emit('place-line', { roomId, lineType: line.type, row: line.row, col: line.col });
+}
+
+document.addEventListener('mousedown', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  if (e.clientX >= rect.left && e.clientX <= rect.right &&
+      e.clientY >= rect.top  && e.clientY <= rect.bottom) handleBoardClick(e);
+});
+
+function getLineAt(mx, my, snapOverride) {
+  if (!room) return null;
+  const size = room.size;
+  const SNAP = snapOverride || snapZone();
+  for (let row = 0; row <= size; row++)
+    for (let col = 0; col < size; col++) {
+      const lx = OFFSET_X + col * CELL_SIZE, ly = OFFSET_Y + row * CELL_SIZE;
+      if (Math.abs(my - ly) < SNAP && mx > lx && mx < lx + CELL_SIZE)
+        return { type: 'h', row, col };
+    }
+  for (let row = 0; row < size; row++)
+    for (let col = 0; col <= size; col++) {
+      const lx = OFFSET_X + col * CELL_SIZE, ly = OFFSET_Y + row * CELL_SIZE;
+      if (Math.abs(mx - lx) < SNAP && my > ly && my < ly + CELL_SIZE)
+        return { type: 'v', row, col };
+    }
+  return null;
+}
+
+function getMyColor() {
+  return room?.players.find(p => p.id === myId)?.color || '#c0392b';
+}
+
+// ---- Game Over ----
+function showGameOver() {
+  if (!room) return;
+  document.getElementById('gameOverModal').style.display = 'flex';
+  stopPulse();
+  const winner = room.winner ? room.players.find(p => p.id === room.winner) : null;
+  document.getElementById('modalIcon').textContent  = winner ? '🏆' : '🤝';
+  document.getElementById('modalTitle').textContent = winner ? `${winner.name} heerst de stad!` : 'Gelijkspel.';
+  const p1 = room.players[0], p2 = room.players[1];
+  const loc = (id) => room.grid.filter(c => c.isKeyLocation && c.owner === id).length;
+  document.getElementById('modalScores').innerHTML = `
+    <div class="score-row" style="color:${p1?.color}">${p1?.name}: ${loc(p1?.id)} / 5 banken</div>
+    ${p2 ? `<div class="score-row" style="color:${p2.color}">${p2.name}: ${loc(p2?.id)} / 5 banken</div>` : ''}
+  `;
+}
+
+document.getElementById('rematchBtn').addEventListener('click', () => {
+  socket.emit('request-rematch', { roomId });
+  document.getElementById('rematchStatus').textContent = 'Wachten op tegenstander...';
+});
+
+document.getElementById('copyLink').addEventListener('click', () => {
+  navigator.clipboard.writeText(window.location.origin + `/room/${roomId}`)
+    .then(() => showToast('🔗 Link gekopieerd.', 'info'));
+});
+
+// ---- Log ----
+let prevGrid = null;
+function updateLog(newRoom) {
+  if (!prevGrid || !newRoom) { prevGrid = newRoom?.grid ? [...newRoom.grid] : null; return; }
+  const entries = document.getElementById('logEntries');
+  for (let i = 0; i < newRoom.grid.length; i++) {
+    const old = prevGrid[i], cur = newRoom.grid[i];
+    if (!old?.owner && cur?.owner) {
+      const owner = newRoom.players.find(p => p.id === cur.owner);
+      const entry = document.createElement('div');
+      if (cur.isKeyLocation) {
+        entry.className = 'log-entry log-key';
+        entry.innerHTML = `🏦 <span style="color:${owner?.color}">${owner?.name}</span> nam <strong>${cur.keyDef.name}</strong>`;
+      } else {
+        entry.className = 'log-entry';
+        entry.innerHTML = `<span style="color:${owner?.color}">${owner?.name}</span> claimde blok${cur.special ? ' ' + cur.special.emoji : ''}`;
+      }
+      entries.prepend(entry);
+      if (entries.children.length > 30) entries.lastChild.remove();
+    }
+  }
+  prevGrid = [...newRoom.grid];
+}
+
+// ---- Toast & Hint ----
+function showToast(msg, type = 'info') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000);
+}
+
+function setHint(text, type) {
+  const el = document.getElementById('actionHint');
+  el.textContent = text;
+  el.className = `action-hint hint-${type}`;
+}
+
+// ---- Helpers ----
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+window.addEventListener('resize', () => { if (room && !rafId) drawBoard(); });

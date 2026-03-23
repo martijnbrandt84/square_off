@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Square Off</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="lobby">
+  <div class="lobby-wrapper">
+
+    <header class="lobby-header">
+      <div class="title-eyebrow">Claim. Sluit in. Domineer.</div>
+      <h1>SQUARE OFF</h1>
+      <div class="title-rule"></div>
+      <p class="title-sub">Eerste die drie banken beheerst, regeert de stad</p>
+    </header>
+
+    <div class="lobby-panel">
+      <div class="field-group">
+        <label class="field-label">Jouw naam</label>
+        <input type="text" id="playerName" maxlength="20" class="field-input" autocomplete="off">
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Bord</label>
+        <div class="choice-row">
+          <button class="choice-btn active" data-size="small">
+            Snel <span>6 × 6</span>
+          </button>
+          <button class="choice-btn" data-size="large">
+            Uitgebreid <span>8 × 8</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Modus</label>
+        <div class="choice-row">
+          <button class="choice-btn active" id="modeMulti">👥 Multiplayer</button>
+          <button class="choice-btn" id="modeSingle">🤖 vs Computer</button>
+        </div>
+      </div>
+
+      <button class="action-btn primary-btn" id="createBtn">Kamer starten →</button>
+
+      <!-- Alleen zichtbaar bij multiplayer -->
+      <div id="joinSection" class="join-section">
+        <div class="join-divider">— of join een bestaande kamer —</div>
+        <div class="join-row">
+          <input type="text" id="roomCode" placeholder="Kamercode" maxlength="8" class="field-input code-input" autocomplete="off">
+          <button class="action-btn join-btn" id="joinBtn">Join →</button>
+        </div>
+      </div>
+
+      <button class="rules-link" id="rulesBtn">? Spelregels &amp; specials</button>
+    </div>
+
+  </div>
+
+  <!-- Rules modal -->
+  <div class="modal-overlay" id="rulesModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal rules-modal">
+      <button class="modal-close" onclick="document.getElementById('rulesModal').style.display='none'">✕</button>
+
+      <h2>Spelregels</h2>
+
+      <div class="rules-section">
+        <h3>Doel</h3>
+        <p>Claim als eerste <strong>3 van de 5 banken</strong> om de stad te beheersen.</p>
+      </div>
+
+      <div class="rules-section">
+        <h3>Hoe speel je?</h3>
+        <p>Klik op een lijn tussen twee vakjes om die te claimen. Zodra jij alle <strong>vier lijnen</strong> rondom een blok hebt getrokken, bezit jij dat blok.</p>
+        <p>Ligt er een 🏦 in een blok? Dan telt dat blok mee voor de winst.</p>
+      </div>
+
+      <div class="rules-section">
+        <h3>Specials</h3>
+        <p>Sommige blokken bevatten een special. Claim je zo'n blok, dan activeer je die kracht direct.</p>
+        <div class="specials-list">
+          <div class="special-item">
+            <span class="sp-emoji">🚔</span>
+            <div>
+              <strong>Politie-inval</strong>
+              <span>Tegenstander slaat zijn volgende beurt over</span>
+            </div>
+          </div>
+          <div class="special-item">
+            <span class="sp-emoji">💸</span>
+            <div>
+              <strong>Smeergeld</strong>
+              <span>Jij speelt direct nog een extra beurt</span>
+            </div>
+          </div>
+          <div class="special-item">
+            <span class="sp-emoji">🔧</span>
+            <div>
+              <strong>Sabotage</strong>
+              <span>Kies één lijn van de tegenstander om te verwijderen</span>
+            </div>
+          </div>
+          <div class="special-item">
+            <span class="sp-emoji">🐀</span>
+            <div>
+              <strong>Rat</strong>
+              <span>Tegenstander mist zijn volgende special</span>
+            </div>
+          </div>
+          <div class="special-item">
+            <span class="sp-emoji">🚗</span>
+            <div>
+              <strong>Vluchtauto</strong>
+              <span>Jij bent beschermd tegen het volgende negatieve special</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rules-section">
+        <h3>Tips</h3>
+        <ul class="tips-list">
+          <li>Bekijk welke banken de tegenstander bijna insluit — blokkeer ze.</li>
+          <li>Specials kunnen het spel omgooien. Pak ze vroeg.</li>
+          <li>Een 🔧 Sabotage is het sterkst als de tegenstander bijna een bank claimt.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Default name generator
+    const POOL = [
+      'Don Nero','Luca V.','Marco B.','Sofia R.','Dante','Giulia M.',
+      'Carlo','Vincenzo','Nina','Il Duce','Fabio','Rosa','Matteo','Elisa'
+    ];
+    document.getElementById('playerName').value = POOL[Math.floor(Math.random() * POOL.length)];
+
+    let selectedSize  = 'small';
+    let vsComputer    = false;
+
+    function updateJoinVisibility() {
+      document.getElementById('joinSection').style.display = vsComputer ? 'none' : 'block';
+    }
+    updateJoinVisibility();
+
+    document.querySelectorAll('.choice-btn[data-size]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.choice-btn[data-size]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedSize = btn.dataset.size;
+      });
+    });
+
+    document.getElementById('modeMulti').addEventListener('click', () => {
+      vsComputer = false;
+      document.getElementById('modeMulti').classList.add('active');
+      document.getElementById('modeSingle').classList.remove('active');
+      updateJoinVisibility();
+    });
+    document.getElementById('modeSingle').addEventListener('click', () => {
+      vsComputer = true;
+      document.getElementById('modeSingle').classList.add('active');
+      document.getElementById('modeMulti').classList.remove('active');
+      updateJoinVisibility();
+    });
+
+    document.getElementById('createBtn').addEventListener('click', async () => {
+      const name = document.getElementById('playerName').value.trim() || 'Don';
+      const res  = await fetch('/create-room', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+      const { roomId } = await res.json();
+      const vc = vsComputer ? '&vsComputer=1' : '';
+      window.location.href = `/room/${roomId}?name=${encodeURIComponent(name)}&size=${selectedSize}${vc}`;
+    });
+
+    document.getElementById('joinBtn').addEventListener('click', () => {
+      const name = document.getElementById('playerName').value.trim() || 'Don';
+      const code = document.getElementById('roomCode').value.trim().toLowerCase();
+      if (!code) { document.getElementById('roomCode').focus(); return; }
+      window.location.href = `/room/${code}?name=${encodeURIComponent(name)}`;
+    });
+
+    document.getElementById('rulesBtn').addEventListener('click', () => {
+      document.getElementById('rulesModal').style.display = 'flex';
+    });
+  </script>
+</body>
+</html>
