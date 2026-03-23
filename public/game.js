@@ -51,6 +51,50 @@ let waitingForBomb = false;
 let hoveredLine    = null;
 let rafId          = null;
 let lastTouchLine  = null;
+let claimedFlashes = []; // {idx, color, t}
+
+// ---- SFX (Web Audio API — lazy init, iOS-safe) ----
+const SFX = (() => {
+  let _ctx = null;
+  function ctx() {
+    if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_ctx.state === 'suspended') _ctx.resume();
+    return _ctx;
+  }
+  function beep(freq, type, dur, vol, delay = 0) {
+    try {
+      const c = ctx(), o = c.createOscillator(), g = c.createGain();
+      o.connect(g); g.connect(c.destination);
+      o.type = type;
+      o.frequency.setValueAtTime(freq, c.currentTime + delay);
+      g.gain.setValueAtTime(vol, c.currentTime + delay);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + delay + dur);
+      o.start(c.currentTime + delay);
+      o.stop(c.currentTime + delay + dur + 0.05);
+    } catch(e) {}
+  }
+  function sweep(f0, f1, type, dur, vol) {
+    try {
+      const c = ctx(), o = c.createOscillator(), g = c.createGain();
+      o.connect(g); g.connect(c.destination);
+      o.type = type;
+      o.frequency.setValueAtTime(f0, c.currentTime);
+      o.frequency.exponentialRampToValueAtTime(f1, c.currentTime + dur);
+      g.gain.setValueAtTime(vol, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+      o.start(c.currentTime);
+      o.stop(c.currentTime + dur + 0.05);
+    } catch(e) {}
+  }
+  return {
+    placeLine() { beep(700, 'sine', 0.07, 0.10); },
+    claimCell() { beep(320, 'sine', 0.18, 0.28); beep(200, 'sine', 0.14, 0.18, 0.06); },
+    claimBank() { [440, 554, 659, 880].forEach((f, i) => beep(f, 'sine', 0.35, 0.28, i * 0.09)); },
+    special()   { sweep(200, 900, 'sawtooth', 0.30, 0.16); beep(900, 'sine', 0.18, 0.14, 0.25); },
+    win()       { [523, 659, 784, 1047].forEach((f, i) => beep(f, 'sine', 0.4, 0.30, i * 0.10)); },
+    lose()      { [392, 349, 311, 262].forEach((f, i) => beep(f, 'sine', 0.38, 0.22, i * 0.12)); },
+  };
+})();
 
 // ---- Layout ----
 const DOT_R = 4;
@@ -68,15 +112,24 @@ socket.on('connect', () => {
 socket.on('room-update', (updatedRoom) => {
   const wasWaiting = !room || room.status === 'waiting';
 
-  // Detect special pickup before updating room state
+  // Detect newly claimed cells — flashes, sounds, special reveal
   if (room?.grid && updatedRoom.grid) {
+    let specialShown = false, anyBank = false, anyCell = false;
     for (let i = 0; i < updatedRoom.grid.length; i++) {
-      const cur = updatedRoom.grid[i], old = room.grid[i];
-      if (!old?.owner && cur?.owner && cur.special) {
-        showSpecialReveal(cur.special, cur.owner === myId);
-        break;
+      const cur = updatedRoom.grid[i], prev = room.grid[i];
+      if (!prev?.owner && cur?.owner) {
+        const owner = updatedRoom.players.find(p => p.id === cur.owner);
+        claimedFlashes.push({ idx: i, color: owner?.color || '#fff', t: Date.now() });
+        if (cur.isKeyLocation) anyBank = true; else anyCell = true;
+        if (cur.special && !specialShown) {
+          showSpecialReveal(cur.special, cur.owner === myId);
+          setTimeout(() => SFX.special(), 300);
+          specialShown = true;
+        }
       }
     }
+    if (anyBank) SFX.claimBank();
+    else if (anyCell) SFX.claimCell();
   }
 
   updateLog(updatedRoom);
@@ -102,7 +155,7 @@ socket.on('room-update', (updatedRoom) => {
     setHint('', '');
   }
 
-  if (room.status === 'playing') startPulse();
+  if (room.status === 'playing' || claimedFlashes.length > 0) startPulse();
   else stopPulse();
 });
 
@@ -116,14 +169,18 @@ socket.on('rematch-vote', ({ votes }) => {
 function startPulse() {
   if (rafId) return;
   function tick() {
-    if (!room || room.status !== 'playing') { rafId = null; return; }
-    drawBoard();
-    rafId = requestAnimationFrame(tick);
+    if (room) drawBoard(); // drawBoard cleans stale flashes
+    const hasFlashes = claimedFlashes.length > 0;
+    if (room?.status === 'playing' || hasFlashes) {
+      rafId = requestAnimationFrame(tick);
+    } else {
+      rafId = null;
+    }
   }
   rafId = requestAnimationFrame(tick);
 }
 function stopPulse() {
-  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  if (rafId && claimedFlashes.length === 0) { cancelAnimationFrame(rafId); rafId = null; }
 }
 
 // ---- UI ----
@@ -223,6 +280,22 @@ function drawBoard() {
     for (let col = 0; col < size; col++)
       drawCityBlock(grid[row * size + col], OFFSET_X + col * CELL_SIZE, OFFSET_Y + row * CELL_SIZE, CELL_SIZE);
 
+  // Danger overlay — unclaimed cells with 3 sides (about to be taken)
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) {
+      const cell = grid[row * size + col];
+      if (!cell.owner) {
+        const sides = (hLines[row][col] ? 1 : 0) + (hLines[row+1][col] ? 1 : 0) +
+                      (vLines[row][col] ? 1 : 0) + (vLines[row][col+1] ? 1 : 0);
+        if (sides === 3) {
+          const dx = OFFSET_X + col * CELL_SIZE, dy = OFFSET_Y + row * CELL_SIZE;
+          ctx.fillStyle = cell.isKeyLocation ? 'rgba(232,160,32,0.28)' : 'rgba(255,70,30,0.18)';
+          ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
+        }
+      }
+    }
+  }
+
   // Owned / hover territory lines
   for (let row = 0; row <= size; row++)
     for (let col = 0; col < size; col++) {
@@ -244,6 +317,17 @@ function drawBoard() {
         if (isHov) drawLine('v', row, col, getMyColor(), true);
       }
     }
+
+  // Claim flash animations (drawn after lines, before dots)
+  const _now = Date.now();
+  claimedFlashes = claimedFlashes.filter(f => _now - f.t < 700);
+  for (const f of claimedFlashes) {
+    const frow = Math.floor(f.idx / size), fcol = f.idx % size;
+    const age = (_now - f.t) / 700;
+    const fx = OFFSET_X + fcol * CELL_SIZE, fy = OFFSET_Y + frow * CELL_SIZE;
+    ctx.fillStyle = hexToRgba(f.color, (1 - age) * 0.65);
+    ctx.fillRect(fx + SI, fy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
+  }
 
   // Intersection dots
   for (let row = 0; row <= size; row++)
@@ -388,6 +472,7 @@ canvas.addEventListener('touchend', (e) => {
   if (line.type === 'h' && hLines[line.row]?.[line.col]) { if (!rafId) drawBoard(); return; }
   if (line.type === 'v' && vLines[line.row]?.[line.col]) { if (!rafId) drawBoard(); return; }
   if (!socket.connected) return;
+  SFX.placeLine();
   socket.emit('place-line', { roomId, lineType: line.type, row: line.row, col: line.col });
   if (!rafId) drawBoard();
 }, { passive: false });
@@ -428,6 +513,7 @@ function handleBoardClick(e) {
   if (line.type === 'h' && hLines[line.row]?.[line.col]) return;
   if (line.type === 'v' && vLines[line.row]?.[line.col]) return;
   if (!socket.connected) return;
+  SFX.placeLine();
   socket.emit('place-line', { roomId, lineType: line.type, row: line.row, col: line.col });
 }
 
@@ -466,6 +552,8 @@ function showGameOver() {
   document.getElementById('gameOverModal').style.display = 'flex';
   stopPulse();
   const winner = room.winner ? room.players.find(p => p.id === room.winner) : null;
+  if (winner?.id === myId) SFX.win();
+  else if (winner) SFX.lose();
   document.getElementById('modalIcon').textContent  = winner ? '🏆' : '🤝';
   document.getElementById('modalTitle').textContent = winner ? `${winner.name} heerst de stad!` : 'Gelijkspel.';
   const p1 = room.players[0], p2 = room.players[1];

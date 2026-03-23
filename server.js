@@ -129,6 +129,7 @@ function createRoom(roomId, gridSize = 'medium', vsComputer = false) {
     status: 'waiting', vsComputer, winner: null,
     skipNext: null, pendingExtraMove: null,
     bombTarget: null, ratTarget: null, shieldedPlayer: null,
+    lastActivity: Date.now(),
   };
 }
 
@@ -309,6 +310,8 @@ function processMove(room, roomId, playerId, lineType, row, col) {
     vLines[row][col] = playerId;
   }
 
+  room.lastActivity = Date.now();
+
   const completed = checkCompletedCells(room.grid, room.lines, size);
   let scored = false;
 
@@ -479,6 +482,16 @@ function sanitizeRoom(room) {
     shieldedPlayer: room.shieldedPlayer,
   };
 }
+
+// Room cleanup: finished rooms after 30 min, any stale room after 3 hours
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, room] of Object.entries(rooms)) {
+    const idle = now - (room.lastActivity || 0);
+    if (room.status === 'finished' && idle > 30 * 60 * 1000) { delete rooms[id]; continue; }
+    if (idle > 3 * 60 * 60 * 1000) delete rooms[id];
+  }
+}, 10 * 60 * 1000);
 
 const PORT = process.env.PORT || 3003;
 server.listen(PORT, () => console.log(`Square Off draait op http://localhost:${PORT}`));
