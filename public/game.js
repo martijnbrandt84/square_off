@@ -90,6 +90,7 @@ const SFX = (() => {
   }
   return {
     placeLine() { beep(700, 'sine', 0.07, 0.10); },
+    oppLine()   { beep(280, 'sine', 0.08, 0.07); },
     claimCell() { beep(320, 'sine', 0.18, 0.28); beep(200, 'sine', 0.14, 0.18, 0.06); },
     claimBank() { [440, 554, 659, 880].forEach((f, i) => beep(f, 'sine', 0.35, 0.28, i * 0.09)); },
     special()   { sweep(200, 900, 'sawtooth', 0.30, 0.16); beep(900, 'sine', 0.18, 0.14, 0.25); },
@@ -113,6 +114,22 @@ socket.on('connect', () => {
 // ---- Room updates ----
 socket.on('room-update', (updatedRoom) => {
   const wasWaiting = !room || room.status === 'waiting';
+
+  // Detect opponent line placement
+  if (room?.lines && updatedRoom.lines) {
+    const { hLines: oh, vLines: ov } = room.lines;
+    const { hLines: nh, vLines: nv } = updatedRoom.lines;
+    let oppPlaced = false;
+    outer: for (let r = 0; r < nh.length; r++)
+      for (let c = 0; c < nh[r].length; c++)
+        if (!oh[r]?.[c] && nh[r][c] && nh[r][c] !== myId) { oppPlaced = true; break outer; }
+    if (!oppPlaced) {
+      outer2: for (let r = 0; r < nv.length; r++)
+        for (let c = 0; c < nv[r].length; c++)
+          if (!ov[r]?.[c] && nv[r][c] && nv[r][c] !== myId) { oppPlaced = true; break outer2; }
+    }
+    if (oppPlaced) SFX.oppLine();
+  }
 
   // Detect newly claimed cells — flashes, sounds, special reveal
   if (room?.grid && updatedRoom.grid) {
@@ -382,14 +399,17 @@ function drawCityBlock(cell, x, y, cs) {
     ctx.globalAlpha = 1;
   }
 
-  // Key location — bright bank, no border, no label
+  // Key location — golden background + emoji
   if (cell.isKeyLocation) {
     if (cell.owner) {
       const owner = room.players.find(p => p.id === cell.owner);
       if (owner) {
-        ctx.fillStyle = hexToRgba(owner.color, 0.28);
+        ctx.fillStyle = hexToRgba(owner.color, 0.38);
         ctx.fillRect(x + SI, y + SI, cs - SI * 2, cs - SI * 2);
       }
+    } else {
+      ctx.fillStyle = 'rgba(210, 150, 10, 0.30)';
+      ctx.fillRect(x + SI, y + SI, cs - SI * 2, cs - SI * 2);
     }
     ctx.globalAlpha = 1;
     ctx.font = `${Math.floor(cs * 0.55)}px serif`;
