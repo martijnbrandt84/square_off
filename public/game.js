@@ -211,12 +211,16 @@ function updateUI() {
     document.getElementById('p1card').style.borderColor = p1.color;
     document.getElementById('p1turn').style.opacity = room.turn === p1.id ? '1' : '0';
     renderLocationBar(p1.id, 'p1locs');
+    const p1banks = room.grid.filter(c => c.isKeyLocation && c.owner === p1.id).length;
+    document.getElementById('p1score').textContent = p1banks;
   }
   if (p2) {
     document.getElementById('p2name').textContent = p2.name;
     document.getElementById('p2card').style.borderColor = p2.color;
     document.getElementById('p2turn').style.opacity = room.turn === p2.id ? '1' : '0';
     renderLocationBar(p2.id, 'p2locs');
+    const p2banks = room.grid.filter(c => c.isKeyLocation && c.owner === p2.id).length;
+    document.getElementById('p2score').textContent = p2banks;
   }
   const statusEl = document.getElementById('statusBadge');
   if (room.status === 'waiting')  { statusEl.textContent = '⏳ Wachten';   statusEl.className = 'status-badge waiting'; }

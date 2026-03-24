@@ -9,73 +9,84 @@
 <body class="game-page">
   <div class="game-layout">
 
-    <!-- Left panel — speler 1 -->
-    <aside class="side-panel left-panel">
-      <div class="player-card" id="p1card">
-        <div class="pirate-icon">🤵</div>
-        <div class="player-info">
-          <div class="player-name" id="p1name">---</div>
-          <div class="player-locs" id="p1locs">◌ ◌ ◌ ◌ ◌</div>
-        </div>
-        <div class="turn-indicator" id="p1turn"></div>
-      </div>
-
-      <div class="power-display" id="powerDisplay" style="display:none">
-        <div class="power-title">⚡ Actief</div>
-        <div class="power-text" id="powerText"></div>
-      </div>
-    </aside>
-
-    <!-- Main board -->
-    <main class="board-area">
-      <div class="game-header">
+    <!-- Top bar: nav + scoreboard -->
+    <header class="game-topbar">
+      <div class="topbar-nav">
         <button class="btn-back" onclick="window.location='/'">← Lobby</button>
-        <button class="btn-back btn-help" id="gameRulesBtn">? Regels</button>
         <div class="room-info">
           <span class="room-label">Kamer</span>
           <span class="room-code" id="roomCode"></span>
-          <button class="btn-copy" id="copyLink" title="Kopieer link">🔗 Kopieer</button>
+          <button class="btn-copy" id="copyLink" title="Kopieer link">🔗</button>
         </div>
-        <div class="status-badge" id="statusBadge">Wachten...</div>
-      </div>
-
-      <div class="board-wrapper">
-        <canvas id="gameCanvas"></canvas>
-      </div>
-
-      <div class="action-hint" id="actionHint"></div>
-    </main>
-
-    <!-- Right panel — speler 2 -->
-    <aside class="side-panel right-panel">
-      <div class="player-card" id="p2card">
-        <div class="pirate-icon">🕴️</div>
-        <div class="player-info">
-          <div class="player-name" id="p2name">Wachten...</div>
-          <div class="player-locs" id="p2locs">◌ ◌ ◌ ◌ ◌</div>
+        <div class="topbar-right">
+          <div class="status-badge" id="statusBadge">Wachten...</div>
+          <button class="btn-back btn-help" id="gameRulesBtn">? Regels</button>
         </div>
-        <div class="turn-indicator" id="p2turn"></div>
       </div>
 
-      <div class="log-panel">
-        <div class="log-title">— Bewegingen —</div>
-        <div class="log-entries" id="logEntries"></div>
+      <div class="scoreboard">
+        <div class="score-card score-card-left" id="p1card">
+          <div class="score-turn-dot" id="p1turn"></div>
+          <span class="score-avatar">🤵</span>
+          <div class="score-details">
+            <span class="score-name" id="p1name">---</span>
+            <div class="score-pips" id="p1locs">◌ ◌ ◌ ◌ ◌</div>
+          </div>
+          <div class="score-count">
+            <span class="score-num" id="p1score">0</span>
+            <span class="score-bank-icon">🏦</span>
+          </div>
+        </div>
+
+        <div class="score-divider">VS</div>
+
+        <div class="score-card score-card-right" id="p2card">
+          <div class="score-count">
+            <span class="score-bank-icon">🏦</span>
+            <span class="score-num" id="p2score">0</span>
+          </div>
+          <div class="score-details score-details-right">
+            <span class="score-name" id="p2name">Wachten...</span>
+            <div class="score-pips" id="p2locs">◌ ◌ ◌ ◌ ◌</div>
+          </div>
+          <span class="score-avatar">🕴️</span>
+          <div class="score-turn-dot" id="p2turn"></div>
+        </div>
       </div>
-    </aside>
+    </header>
+
+    <!-- Game body: board + sidebar -->
+    <div class="game-body">
+      <main class="board-area">
+        <div class="board-wrapper">
+          <canvas id="gameCanvas"></canvas>
+        </div>
+        <div class="action-hint" id="actionHint"></div>
+      </main>
+
+      <aside class="game-sidebar">
+        <div class="power-display" id="powerDisplay" style="display:none">
+          <div class="power-title">⚡ Actief</div>
+          <div class="power-text" id="powerText"></div>
+        </div>
+        <div class="log-panel">
+          <div class="log-title">— Bewegingen —</div>
+          <div class="log-entries" id="logEntries"></div>
+        </div>
+      </aside>
+    </div>
+
   </div>
 
   <!-- Rules Modal -->
   <div class="modal-overlay" id="gameRulesModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
     <div class="modal rules-modal">
       <button class="modal-close" onclick="document.getElementById('gameRulesModal').style.display='none'">✕</button>
-
       <h2>Spelregels</h2>
-
       <div class="rules-section">
         <h3>Doel</h3>
         <p>Beheers de stad: wees de eerste die <strong>3 van de 5 banken 🏦</strong> claimt.</p>
       </div>
-
       <div class="rules-section">
         <h3>Hoe speel je?</h3>
         <p><strong>1.</strong> Spelers wisselen beurten af.</p>
@@ -83,49 +94,17 @@
         <p><strong>3.</strong> Sluit je alle <strong>vier zijden</strong> van een blok in? Dan is het blok van jou — en speel je <strong>direct nog een beurt</strong>.</p>
         <p><strong>4.</strong> Bevat een blok een 🏦? Dan telt het mee voor de overwinning.</p>
       </div>
-
       <div class="rules-section">
         <h3>⚡ Specials</h3>
         <p>Bepaalde blokken bevatten een special. Claim je zo'n blok, dan activeer je die kracht direct.</p>
         <div class="specials-list">
-          <div class="special-item">
-            <span class="sp-emoji">🚔</span>
-            <div>
-              <strong>Politie-inval</strong>
-              <span>Tegenstander slaat zijn volgende beurt over</span>
-            </div>
-          </div>
-          <div class="special-item">
-            <span class="sp-emoji">💸</span>
-            <div>
-              <strong>Smeergeld</strong>
-              <span>Jij speelt direct nog een extra beurt</span>
-            </div>
-          </div>
-          <div class="special-item">
-            <span class="sp-emoji">🔧</span>
-            <div>
-              <strong>Sabotage</strong>
-              <span>Kies één lijn van de tegenstander om te verwijderen</span>
-            </div>
-          </div>
-          <div class="special-item">
-            <span class="sp-emoji">🐀</span>
-            <div>
-              <strong>Rat</strong>
-              <span>Tegenstander mist zijn eerstvolgende special</span>
-            </div>
-          </div>
-          <div class="special-item">
-            <span class="sp-emoji">🚗</span>
-            <div>
-              <strong>Vluchtauto</strong>
-              <span>Jij bent beschermd tegen het volgende negatieve special</span>
-            </div>
-          </div>
+          <div class="special-item"><span class="sp-emoji">🚔</span><div><strong>Politie-inval</strong><span>Tegenstander slaat zijn volgende beurt over</span></div></div>
+          <div class="special-item"><span class="sp-emoji">💸</span><div><strong>Smeergeld</strong><span>Jij speelt direct nog een extra beurt</span></div></div>
+          <div class="special-item"><span class="sp-emoji">🔧</span><div><strong>Sabotage</strong><span>Kies één lijn van de tegenstander om te verwijderen</span></div></div>
+          <div class="special-item"><span class="sp-emoji">🐀</span><div><strong>Rat</strong><span>Tegenstander mist zijn eerstvolgende special</span></div></div>
+          <div class="special-item"><span class="sp-emoji">🚗</span><div><strong>Vluchtauto</strong><span>Jij bent beschermd tegen het volgende negatieve special</span></div></div>
         </div>
       </div>
-
       <div class="rules-section">
         <h3>💡 Tips</h3>
         <ul class="tips-list">
