@@ -4,7 +4,7 @@ const { Server } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 
-process.on('uncaughtException', (err) => console.error('Fout:', err));
+process.on('uncaughtException',  (err) => console.error('Fout:', err));
 process.on('unhandledRejection', (err) => console.error('Promise fout:', err));
 
 const app = express();
