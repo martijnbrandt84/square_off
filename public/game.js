@@ -377,6 +377,24 @@ function drawBoard() {
     ctx.fillRect(fx + SI, fy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
   }
 
+  // Bank & special emojis — drawn last so lines never cover them
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.globalAlpha = 1;
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) {
+      const cell = grid[row * size + col];
+      const cx = OFFSET_X + col * CELL_SIZE + CELL_SIZE / 2;
+      const cy = OFFSET_Y + row * CELL_SIZE + CELL_SIZE / 2;
+      if (cell.isKeyLocation) {
+        ctx.font = `${Math.floor(CELL_SIZE * 0.55)}px serif`;
+        ctx.fillText('🏦', cx, cy);
+      } else if (cell.special && !cell.owner) {
+        ctx.font = `${Math.floor(CELL_SIZE * 0.44)}px serif`;
+        ctx.fillText(cell.special.emoji, cx, cy);
+      }
+    }
+  }
+
   // Intersection dots
   for (let row = 0; row <= size; row++)
     for (let col = 0; col <= size; col++) {
@@ -413,16 +431,7 @@ function drawCityBlock(cell, x, y, cs) {
     ctx.globalAlpha = 1;
   }
 
-  // Special emoji
-  if (cell.special && !cell.owner) {
-    ctx.globalAlpha = 0.90;
-    ctx.font = `${Math.floor(cs * 0.38)}px serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(cell.special.emoji, x + cs / 2, y + cs / 2);
-    ctx.globalAlpha = 1;
-  }
-
-  // Key location — golden background + emoji
+  // Key location — golden background only (emoji drawn in separate pass)
   if (cell.isKeyLocation) {
     if (cell.owner) {
       const owner = room.players.find(p => p.id === cell.owner);
@@ -434,10 +443,6 @@ function drawCityBlock(cell, x, y, cs) {
       ctx.fillStyle = 'rgba(210, 150, 10, 0.30)';
       ctx.fillRect(x + SI, y + SI, cs - SI * 2, cs - SI * 2);
     }
-    ctx.globalAlpha = 1;
-    ctx.font = `${Math.floor(cs * 0.55)}px serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('🏦', x + cs / 2, y + cs / 2);
   }
 }
 
