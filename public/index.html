@@ -133,6 +133,9 @@
   </div>
 
   <script>
+    const BACKEND = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? '' : 'https://squareoff-production.up.railway.app';
+
     // Default name generator
     const POOL = [
       'Don Nero','Luca V.','Marco B.','Sofia R.','Dante','Giulia M.',
@@ -171,7 +174,7 @@
 
     document.getElementById('createBtn').addEventListener('click', async () => {
       const name = document.getElementById('playerName').value.trim() || 'Don';
-      const res  = await fetch('/create-room', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+      const res  = await fetch(`${BACKEND}/create-room`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
       const { roomId } = await res.json();
       const vc = vsComputer ? '&vsComputer=1' : '';
       window.location.href = `/room/${roomId}?name=${encodeURIComponent(name)}&size=${selectedSize}${vc}`;

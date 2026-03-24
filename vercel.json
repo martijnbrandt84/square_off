@@ -1,0 +1,6 @@
+{
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/room/:path*", "destination": "/game.html" }
+  ]
+}

@@ -1,5 +1,7 @@
 // ---- Init ----
-const socket = io();
+const BACKEND = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? '' : 'https://squareoff-production.up.railway.app';
+const socket = BACKEND ? io(BACKEND) : io();
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -260,8 +262,14 @@ function resizeCanvas() {
   CELL_SIZE = Math.max(38, Math.min(CELL_SIZE, 96));
   OFFSET_X  = mobile ? 8 : 24;
   OFFSET_Y  = mobile ? 8 : 24;
-  canvas.width  = size * CELL_SIZE + OFFSET_X * 2;
-  canvas.height = size * CELL_SIZE + OFFSET_Y * 2;
+  const dpr  = window.devicePixelRatio || 1;
+  const logW = size * CELL_SIZE + OFFSET_X * 2;
+  const logH = size * CELL_SIZE + OFFSET_Y * 2;
+  canvas.width        = Math.round(logW * dpr);
+  canvas.height       = Math.round(logH * dpr);
+  canvas.style.width  = logW + 'px';
+  canvas.style.height = logH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 // ---- Draw board ----
@@ -271,9 +279,9 @@ function drawBoard() {
   const { size, grid, lines } = room;
   const { hLines, vLines }    = lines;
 
-  // Streets (background)
+  // Streets (background) — use logical dimensions (ctx is scaled by DPR)
   ctx.fillStyle = MAP.bg;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, size * CELL_SIZE + OFFSET_X * 2, size * CELL_SIZE + OFFSET_Y * 2);
 
   // City blocks (inset from streets)
   for (let row = 0; row < size; row++)
@@ -425,8 +433,8 @@ canvas.addEventListener('mousemove', (e) => {
   if (!room || room.status !== 'playing') return;
   if (room.turn !== myId && !waitingForBomb) return;
   const rect = canvas.getBoundingClientRect();
-  const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-  const my = (e.clientY - rect.top)  * (canvas.height / rect.height);
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
   const prev = JSON.stringify(hoveredLine);
   hoveredLine = getLineAt(mx, my);
   if (JSON.stringify(hoveredLine) !== prev && !rafId) drawBoard();
@@ -441,8 +449,8 @@ canvas.addEventListener('touchmove', (e) => {
   if (room.turn !== myId && !waitingForBomb) return;
   const touch = e.touches[0];
   const rect  = canvas.getBoundingClientRect();
-  const mx = (touch.clientX - rect.left) * (canvas.width / rect.width);
-  const my = (touch.clientY - rect.top)  * (canvas.height / rect.height);
+  const mx = touch.clientX - rect.left;
+  const my = touch.clientY - rect.top;
   const prev = JSON.stringify(hoveredLine);
   hoveredLine   = getLineAt(mx, my);
   lastTouchLine = hoveredLine;
@@ -481,8 +489,8 @@ canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
   const touch = e.touches[0];
   const rect  = canvas.getBoundingClientRect();
-  const mx = (touch.clientX - rect.left) * (canvas.width / rect.width);
-  const my = (touch.clientY - rect.top)  * (canvas.height / rect.height);
+  const mx = touch.clientX - rect.left;
+  const my = touch.clientY - rect.top;
   hoveredLine   = getLineAt(mx, my);
   lastTouchLine = hoveredLine;
   if (!rafId) drawBoard();
@@ -491,8 +499,8 @@ canvas.addEventListener('touchstart', (e) => {
 function handleBoardClick(e) {
   if (!room || room.status !== 'playing') return;
   const rect = canvas.getBoundingClientRect();
-  const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-  const my = (e.clientY - rect.top)  * (canvas.height / rect.height);
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
   if (room.turn !== myId && !waitingForBomb) return;
 
   const line = hoveredLine || getLineAt(mx, my, CELL_SIZE * 0.44);
