@@ -172,10 +172,13 @@
       updateJoinVisibility();
     });
 
-    document.getElementById('createBtn').addEventListener('click', async () => {
+    function genRoomId() {
+      return Math.random().toString(36).slice(2, 10);
+    }
+
+    document.getElementById('createBtn').addEventListener('click', () => {
       const name = document.getElementById('playerName').value.trim() || 'Don';
-      const res  = await fetch(`${BACKEND}/create-room`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
-      const { roomId } = await res.json();
+      const roomId = genRoomId();
       const vc = vsComputer ? '&vsComputer=1' : '';
       window.location.href = `/room/${roomId}?name=${encodeURIComponent(name)}&size=${selectedSize}${vc}`;
     });
