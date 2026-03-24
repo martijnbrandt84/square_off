@@ -41,10 +41,11 @@ const MAP = {
     street:   { fill: '#12141e', emojis: ['🏠','🏡','🏘️','🏠','🏡'] },
     district: { fill: '#0f1220', emojis: ['🏢','🏬','🏪','🏣','🏨'] },
   },
-  dot: '#2c3248',
+  dot: '#161928',
 };
 
 const SI = 3; // street inset per side (street width = SI*2 = 6px)
+const UNPLACED_LINE_COLOR = 'rgba(255,255,255,0.045)';
 
 // ---- State ----
 let room     = null;
@@ -100,7 +101,7 @@ const SFX = (() => {
 })();
 
 // ---- Layout ----
-const DOT_R = 4;
+const DOT_R = 3;
 let CELL_SIZE = 72;
 let OFFSET_X  = 24;
 let OFFSET_Y  = 24;
@@ -324,6 +325,24 @@ function drawBoard() {
       }
     }
   }
+
+  // Faint indicators for unplaced line positions
+  ctx.strokeStyle = UNPLACED_LINE_COLOR;
+  ctx.lineWidth   = 2;
+  ctx.lineCap     = 'butt';
+  ctx.shadowBlur  = 0;
+  for (let row = 0; row <= size; row++)
+    for (let col = 0; col < size; col++)
+      if (!hLines[row]?.[col]) {
+        const x = OFFSET_X + col * CELL_SIZE, y = OFFSET_Y + row * CELL_SIZE;
+        ctx.beginPath(); ctx.moveTo(x + 4, y); ctx.lineTo(x + CELL_SIZE - 4, y); ctx.stroke();
+      }
+  for (let row = 0; row < size; row++)
+    for (let col = 0; col <= size; col++)
+      if (!vLines[row]?.[col]) {
+        const x = OFFSET_X + col * CELL_SIZE, y = OFFSET_Y + row * CELL_SIZE;
+        ctx.beginPath(); ctx.moveTo(x, y + 4); ctx.lineTo(x, y + CELL_SIZE - 4); ctx.stroke();
+      }
 
   // Owned / hover territory lines
   for (let row = 0; row <= size; row++)
