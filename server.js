@@ -48,7 +48,9 @@ const WIN_LOCATIONS = 3; // claim this many key locations to win
 // ================================================================
 
 const rooms = {};
+const pendingDisconnects = {}; // playerId → { roomId, oldSocketId, timer }
 const GRID_SIZES = { small: 6, large: 8 };
+const RECONNECT_GRACE = 25000; // ms
 
 function getKeyPositions(size) {
   // Shuffle all grid positions and pick 5 that are not too close to each other
@@ -396,35 +398,44 @@ function scheduleBotMove(room, roomId) {
 // ================================================================
 
 io.on('connection', (socket) => {
-  socket.on('join-room', ({ roomId, playerName, gridSize, vsComputer }) => {
+  socket.on('join-room', ({ roomId, playerName, gridSize, vsComputer, playerId }) => {
     let room = rooms[roomId];
     if (!room) { room = createRoom(roomId, gridSize || 'small', !!vsComputer); rooms[roomId] = room; }
 
-    // Reconnect: speler met zelfde naam mag een oude slot overnemen
-    if (room.players.length >= 2) {
-      const oldIdx = room.players.findIndex(p => !p.isBot && p.name === (playerName || 'Don'));
-      if (oldIdx !== -1) {
-        const oldId = room.players[oldIdx].id;
-        room.players[oldIdx].id = socket.id;
-        room.scores[socket.id] = room.scores[oldId] ?? 0;
-        delete room.scores[oldId];
-        if (room.turn === oldId) room.turn = socket.id;
-        if (room.skipNext === oldId) room.skipNext = socket.id;
-        if (room.shieldedPlayer === oldId) room.shieldedPlayer = socket.id;
-        if (room.bombTarget === oldId) room.bombTarget = socket.id;
-        if (room.ratTarget === oldId) room.ratTarget = socket.id;
-        if (room.pendingExtraMove === oldId) room.pendingExtraMove = socket.id;
-        socket.join(roomId);
-        socket.data.roomId = roomId;
-        io.to(roomId).emit('room-update', sanitizeRoom(room));
-        return;
+    // Reconnect via playerId (grace period nog actief of slot al bezet)
+    if (playerId && pendingDisconnects[playerId]) {
+      const pending = pendingDisconnects[playerId];
+      clearTimeout(pending.timer);
+      delete pendingDisconnects[playerId];
+      const r = rooms[pending.roomId];
+      if (r) {
+        const p = r.players.find(pl => pl.playerId === playerId);
+        if (p) {
+          const oldId = p.id;
+          p.id = socket.id;
+          p.disconnected = false;
+          r.scores[socket.id] = r.scores[oldId] ?? 0;
+          delete r.scores[oldId];
+          if (r.turn === oldId)             r.turn = socket.id;
+          if (r.skipNext === oldId)         r.skipNext = socket.id;
+          if (r.shieldedPlayer === oldId)   r.shieldedPlayer = socket.id;
+          if (r.bombTarget === oldId)       r.bombTarget = socket.id;
+          if (r.ratTarget === oldId)        r.ratTarget = socket.id;
+          if (r.pendingExtraMove === oldId) r.pendingExtraMove = socket.id;
+          socket.join(pending.roomId);
+          socket.data.roomId = pending.roomId;
+          io.to(pending.roomId).emit('room-update', sanitizeRoom(r));
+          return;
+        }
       }
-      socket.emit('room-full'); return;
     }
+
+    // Kamer vol?
+    if (room.players.length >= 2) { socket.emit('room-full'); return; }
     if (room.players.find(p => p.id === socket.id)) return;
 
     const colors = ['#c0392b', '#2475a8'];
-    const player = { id: socket.id, name: playerName || 'Don', color: colors[room.players.length], num: room.players.length + 1 };
+    const player = { id: socket.id, playerId: playerId || null, name: playerName || 'Don', color: colors[room.players.length], num: room.players.length + 1 };
     room.players.push(player);
     room.scores[socket.id] = 0;
     socket.join(roomId);
@@ -491,8 +502,29 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     const roomId = socket.data.roomId;
-    if (roomId && rooms[roomId]) {
-      const room = rooms[roomId];
+    if (!roomId || !rooms[roomId]) return;
+    const room = rooms[roomId];
+    const player = room.players.find(p => p.id === socket.id && !p.isBot);
+
+    if (player?.playerId) {
+      // Grace period: markeer als verbroken, wacht op reconnect
+      player.disconnected = true;
+      io.to(roomId).emit('room-update', sanitizeRoom(room));
+      pendingDisconnects[player.playerId] = {
+        roomId,
+        timer: setTimeout(() => {
+          delete pendingDisconnects[player.playerId];
+          const r = rooms[roomId];
+          if (!r) return;
+          r.players = r.players.filter(p => p.id !== socket.id && !p.isBot);
+          r.status = r.players.length === 0 ? 'empty' : 'waiting';
+          if (r.players.length === 0)
+            setTimeout(() => { if (rooms[roomId]?.players.length === 0) delete rooms[roomId]; }, 60000);
+          io.to(roomId).emit('room-update', sanitizeRoom(r));
+        }, RECONNECT_GRACE),
+      };
+    } else {
+      // Geen playerId (bijv. oude client) — meteen verwijderen
       room.players = room.players.filter(p => p.id !== socket.id && !p.isBot);
       room.status = room.players.length === 0 ? 'empty' : 'waiting';
       if (room.players.length === 0)
@@ -505,7 +537,8 @@ io.on('connection', (socket) => {
 function sanitizeRoom(room) {
   return {
     id: room.id, gridSize: room.gridSize, size: room.size,
-    grid: room.grid, lines: room.lines, players: room.players, scores: room.scores,
+    grid: room.grid, lines: room.lines,
+    players: room.players.map(({ playerId: _pid, ...p }) => p), scores: room.scores,
     turn: room.turn, status: room.status, vsComputer: room.vsComputer, winner: room.winner,
     bombTarget: room.bombTarget, skipNext: room.skipNext,
     pendingExtraMove: room.pendingExtraMove, ratTarget: room.ratTarget,

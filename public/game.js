@@ -106,10 +106,18 @@ let CELL_SIZE = 72;
 let OFFSET_X  = 24;
 let OFFSET_Y  = 24;
 
+// ---- Persistent player ID (survives page refresh) ----
+function getPlayerId() {
+  let id = localStorage.getItem('squareoff_pid');
+  if (!id) { id = Math.random().toString(36).slice(2, 12); localStorage.setItem('squareoff_pid', id); }
+  return id;
+}
+const playerId = getPlayerId();
+
 // ---- Join room ----
 socket.on('connect', () => {
   myId = socket.id;
-  socket.emit('join-room', { roomId, playerName, gridSize, vsComputer });
+  socket.emit('join-room', { roomId, playerName, gridSize, vsComputer, playerId });
 });
 
 // ---- Room updates ----
@@ -168,7 +176,9 @@ socket.on('room-update', (updatedRoom) => {
   } else if (room.turn === myId && room.status === 'playing') {
     setHint('Jouw beurt — trek een grens.', 'my-turn');
   } else if (room.status === 'playing') {
-    setHint(room.vsComputer ? '🤖 Don Kraken denkt na...' : 'Tegenstander is aan zet...', 'wait');
+    const opp = room.players.find(p => p.id !== myId && !p.isBot);
+    if (opp?.disconnected) setHint('⚠️ Tegenstander verbroken — wacht op reconnect (25s)...', 'wait');
+    else setHint(room.vsComputer ? '🤖 Don Kraken denkt na...' : 'Tegenstander is aan zet...', 'wait');
   } else if (room.status === 'waiting') {
     setHint('Wachten op tweede speler...', 'wait');
   } else {
