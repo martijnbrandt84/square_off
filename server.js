@@ -29,11 +29,9 @@ app.post('/create-room', express.json(), (req, res) => res.json({ roomId: uuidv4
 // Swap this block to change themes without touching game logic.
 // ================================================================
 const THEME_SPECIALS = [
-  { id: 'hitman',  emoji: '🚔', name: 'Politie-inval',   desc: 'Tegenstander slaat volgende beurt over' },
-  { id: 'bribe',   emoji: '💸', name: 'Smeergeld',       desc: 'Speel direct een extra beurt' },
-  { id: 'bomb',    emoji: '🔧', name: 'Sabotage',        desc: 'Verwijder één lijn van de tegenstander' },
-  { id: 'rat',     emoji: '🐀', name: 'Rat',             desc: 'Tegenstander mist zijn volgende special' },
-  { id: 'getaway', emoji: '🚗', name: 'Vluchtauto',     desc: 'Blokkeert het volgende negatieve special' },
+  { id: 'hitman', emoji: '🚔', name: 'Politie-inval', desc: 'Tegenstander slaat volgende beurt over' },
+  { id: 'bribe',  emoji: '💸', name: 'Smeergeld',     desc: 'Speel direct een extra beurt' },
+  { id: 'bomb',   emoji: '🔧', name: 'Sabotage',      desc: 'Verwijder één lijn van de tegenstander' },
 ];
 
 const KEY_LOCATION_DEFS = [
@@ -138,8 +136,7 @@ function createRoom(roomId, gridSize = 'medium', vsComputer = false) {
     players: [], scores: {},
     turn: null, turnCount: 0,
     status: 'waiting', vsComputer, winner: null,
-    skipNext: null, pendingExtraMove: null,
-    bombTarget: null, ratTarget: null, shieldedPlayer: null,
+    skipNext: null, pendingExtraMove: null, bombTarget: null,
     lastActivity: Date.now(),
   };
 }
@@ -147,23 +144,9 @@ function createRoom(roomId, gridSize = 'medium', vsComputer = false) {
 function applySpecialPower(room, playerId, special) {
   const opponentId = room.players.find(p => p.id !== playerId)?.id;
   switch (special.id) {
-    case 'hitman':
-      if (room.shieldedPlayer === opponentId) { room.shieldedPlayer = null; }
-      else { room.skipNext = opponentId; }
-      break;
-    case 'bribe':
-      room.pendingExtraMove = playerId;
-      break;
-    case 'bomb':
-      if (room.shieldedPlayer === opponentId) { room.shieldedPlayer = null; }
-      else { room.bombTarget = playerId; }
-      break;
-    case 'rat':
-      room.ratTarget = opponentId;
-      break;
-    case 'getaway':
-      room.shieldedPlayer = playerId;
-      break;
+    case 'hitman': room.skipNext = opponentId; break;
+    case 'bribe':  room.pendingExtraMove = playerId; break;
+    case 'bomb':   room.bombTarget = playerId; break;
   }
 }
 
@@ -330,11 +313,7 @@ function processMove(room, roomId, playerId, lineType, row, col) {
     const cell = room.grid[idx];
     cell.owner = playerId;
     if (cell.special) {
-      if (room.ratTarget === playerId) {
-        room.ratTarget = null; // rat consumed — special blocked
-      } else {
-        applySpecialPower(room, playerId, cell.special);
-      }
+      applySpecialPower(room, playerId, cell.special);
     }
     scored = true;
   }
@@ -541,8 +520,7 @@ function sanitizeRoom(room) {
     players: room.players.map(({ playerId: _pid, ...p }) => p), scores: room.scores,
     turn: room.turn, status: room.status, vsComputer: room.vsComputer, winner: room.winner,
     bombTarget: room.bombTarget, skipNext: room.skipNext,
-    pendingExtraMove: room.pendingExtraMove, ratTarget: room.ratTarget,
-    shieldedPlayer: room.shieldedPlayer,
+    pendingExtraMove: room.pendingExtraMove,
   };
 }
 

@@ -26,11 +26,9 @@ const THEME = {
 
 // ---- Specials info (for reveal popup) ----
 const SPECIALS_INFO = {
-  hitman:  { emoji: '🚔', name: 'Politie-inval',  myDesc: 'Tegenstander slaat zijn beurt over',           oppDesc: 'Jij slaat je volgende beurt over' },
-  bribe:   { emoji: '💸', name: 'Smeergeld',       myDesc: 'Jij speelt direct nog een beurt',              oppDesc: 'Tegenstander speelt nog een beurt' },
-  bomb:    { emoji: '🔧', name: 'Sabotage',        myDesc: 'Kies een lijn van de tegenstander om te verwijderen', oppDesc: 'Tegenstander verwijdert een van jouw lijnen' },
-  rat:     { emoji: '🐀', name: 'Rat',             myDesc: 'Tegenstander mist zijn volgende special',      oppDesc: 'Jij mist je volgende special' },
-  getaway: { emoji: '🚗', name: 'Vluchtauto',      myDesc: 'Beschermd tegen het volgende negatieve special', oppDesc: 'Tegenstander heeft een schild' },
+  hitman: { emoji: '🚔', name: 'Politie-inval', myDesc: 'Tegenstander slaat zijn volgende beurt over', oppDesc: 'Jij slaat je volgende beurt over' },
+  bribe:  { emoji: '💸', name: 'Smeergeld',     myDesc: 'Jij speelt direct nog een beurt',             oppDesc: 'Tegenstander speelt nog een extra beurt' },
+  bomb:   { emoji: '🔧', name: 'Sabotage',      myDesc: 'Kies een lijn van de tegenstander om te verwijderen', oppDesc: 'Tegenstander verwijdert een van jouw lijnen' },
 };
 
 // ---- City map palette ----
@@ -238,13 +236,7 @@ function updateUI() {
   if (room.status === 'playing')  { statusEl.textContent = '⚔️ In strijd'; statusEl.className = 'status-badge playing'; }
   if (room.status === 'finished') { statusEl.textContent = '🏁 Afgelopen'; statusEl.className = 'status-badge finished'; }
 
-  const powerEl = document.getElementById('powerDisplay');
-  const powerText = document.getElementById('powerText');
-  let msg = '';
-  if (room.shieldedPlayer === myId) msg = '🚗 Vluchtauto actief — volgende aanval mislukt';
-  else if (room.ratTarget && room.ratTarget !== myId) msg = '🐀 Rat actief — tegenstander mist volgende special';
-  powerEl.style.display = msg ? 'block' : 'none';
-  if (msg) powerText.textContent = msg;
+  document.getElementById('powerDisplay').style.display = 'none';
 }
 
 function renderLocationBar(playerId, elementId) {
@@ -321,7 +313,8 @@ function drawBoard() {
     for (let col = 0; col < size; col++)
       drawCityBlock(grid[row * size + col], OFFSET_X + col * CELL_SIZE, OFFSET_Y + row * CELL_SIZE, CELL_SIZE);
 
-  // Danger overlay — unclaimed cells with 3 sides (about to be taken)
+  // Danger overlay — unclaimed cells with 3 sides (pulsing yellow)
+  const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 280);
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
       const cell = grid[row * size + col];
@@ -330,7 +323,7 @@ function drawBoard() {
                       (vLines[row][col] ? 1 : 0) + (vLines[row][col+1] ? 1 : 0);
         if (sides === 3) {
           const dx = OFFSET_X + col * CELL_SIZE, dy = OFFSET_Y + row * CELL_SIZE;
-          ctx.fillStyle = cell.isKeyLocation ? 'rgba(232,160,32,0.28)' : 'rgba(255,70,30,0.18)';
+          ctx.fillStyle = `rgba(240,200,20,${(0.18 + 0.22 * pulse).toFixed(3)})`;
           ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
         }
       }
@@ -423,12 +416,16 @@ function drawCityBlock(cell, x, y, cs) {
   ctx.fillStyle = tm.fill;
   ctx.fillRect(x + SI, y + SI, cs - SI * 2, cs - SI * 2);
 
-  // Owner wash
+  // Owner wash — strong color fill
   if (cell.owner) {
     const owner = room.players.find(p => p.id === cell.owner);
     if (owner) {
-      ctx.fillStyle = hexToRgba(owner.color, 0.24);
+      ctx.fillStyle = hexToRgba(owner.color, 0.52);
       ctx.fillRect(x + SI, y + SI, cs - SI * 2, cs - SI * 2);
+      // subtle inner border
+      ctx.strokeStyle = hexToRgba(owner.color, 0.70);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + SI + 1, y + SI + 1, cs - SI * 2 - 2, cs - SI * 2 - 2);
     }
   }
 
@@ -447,8 +444,11 @@ function drawCityBlock(cell, x, y, cs) {
     if (cell.owner) {
       const owner = room.players.find(p => p.id === cell.owner);
       if (owner) {
-        ctx.fillStyle = hexToRgba(owner.color, 0.38);
+        ctx.fillStyle = hexToRgba(owner.color, 0.55);
         ctx.fillRect(x + SI, y + SI, cs - SI * 2, cs - SI * 2);
+        ctx.strokeStyle = hexToRgba(owner.color, 0.80);
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x + SI + 1, y + SI + 1, cs - SI * 2 - 2, cs - SI * 2 - 2);
       }
     } else {
       ctx.fillStyle = 'rgba(210, 150, 10, 0.30)';
