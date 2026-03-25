@@ -29,9 +29,9 @@ app.post('/create-room', express.json(), (req, res) => res.json({ roomId: uuidv4
 // Swap this block to change themes without touching game logic.
 // ================================================================
 const THEME_SPECIALS = [
-  { id: 'hitman', emoji: '🚔', name: 'Politie-inval', desc: 'Tegenstander slaat volgende beurt over' },
+  { id: 'hitman', emoji: '🚓', name: 'Politie-inval', desc: 'Tegenstander slaat volgende beurt over' },
   { id: 'bribe',  emoji: '💸', name: 'Smeergeld',     desc: 'Speel direct een extra beurt' },
-  { id: 'bomb',   emoji: '🔧', name: 'Sabotage',      desc: 'Verwijder één lijn van de tegenstander' },
+  { id: 'sloop',  emoji: '💥', name: 'Sloop',         desc: 'Verwijder alle lijnen rondom een vakje' },
 ];
 
 const KEY_LOCATION_DEFS = [
@@ -136,7 +136,7 @@ function createRoom(roomId, gridSize = 'medium', vsComputer = false) {
     players: [], scores: {},
     turn: null, turnCount: 0,
     status: 'waiting', vsComputer, winner: null,
-    skipNext: null, pendingExtraMove: null, bombTarget: null,
+    skipNext: null, pendingExtraMove: null, sloopTarget: null,
     lastActivity: Date.now(),
   };
 }
@@ -146,7 +146,7 @@ function applySpecialPower(room, playerId, special) {
   switch (special.id) {
     case 'hitman': room.skipNext = opponentId; break;
     case 'bribe':  room.pendingExtraMove = playerId; break;
-    case 'bomb':   room.bombTarget = playerId; break;
+    case 'sloop':  room.sloopTarget = playerId; break;
   }
 }
 
@@ -251,32 +251,20 @@ function computeBotMove(room) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function computeBotBombTarget(room) {
-  const human = room.players.find(p => !p.isBot);
-  if (!human) return null;
+function computeBotSloopTarget(room) {
   const { size, lines, grid } = room;
-  const { hLines, vLines } = lines;
-  const humanLines = [];
-  for (let row = 0; row <= size; row++)
-    for (let col = 0; col < size; col++)
-      if (hLines[row][col] === human.id) humanLines.push({ type: 'h', row, col });
-  for (let row = 0; row < size; row++)
-    for (let col = 0; col <= size; col++)
-      if (vLines[row][col] === human.id) humanLines.push({ type: 'v', row, col });
-  if (humanLines.length === 0) return null;
-  let best = humanLines[0], bestScore = -1;
-  for (const line of humanLines) {
-    let score = 0;
-    for (const { row, col } of getAdjacentCells(line, size)) {
+  let best = null, bestScore = -1;
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) {
       const cell = grid[row * size + col];
-      if (cell && !cell.owner) {
-        const s = getCellSides(lines, size, row, col);
-        if (cell.isKeyLocation && s === 3) score += 10;
-        else if (cell.isKeyLocation && s >= 2) score += 4;
-        else if (s === 3) score += 2;
-      }
+      if (cell.owner) continue;
+      const sides = getCellSides(lines, size, row, col);
+      if (sides === 0) continue;
+      let score = sides;
+      if (cell.isKeyLocation && sides >= 3) score += 12;
+      else if (cell.isKeyLocation) score += 5;
+      if (score > bestScore) { bestScore = score; best = { row, col }; }
     }
-    if (score > bestScore) { bestScore = score; best = line; }
   }
   return best;
 }
@@ -328,16 +316,18 @@ function processMove(room, roomId, playerId, lineType, row, col) {
     return;
   }
 
-  // Bot auto-resolves its own bomb
-  if (room.vsComputer && room.bombTarget === playerId) {
+  // Bot auto-resolves sloop
+  if (room.vsComputer && room.sloopTarget === playerId) {
     const bot = room.players.find(p => p.isBot);
     if (bot && playerId === bot.id) {
-      const target = computeBotBombTarget(room);
+      const target = computeBotSloopTarget(room);
       if (target) {
-        if (target.type === 'h') room.lines.hLines[target.row][target.col] = null;
-        else room.lines.vLines[target.row][target.col] = null;
+        const { hLines, vLines } = room.lines;
+        const { row, col } = target;
+        hLines[row][col] = null; hLines[row+1][col] = null;
+        vLines[row][col] = null; vLines[row][col+1] = null;
       }
-      room.bombTarget = null;
+      room.sloopTarget = null;
       advanceTurn(room, playerId);
       io.to(roomId).emit('room-update', sanitizeRoom(room));
       scheduleBotMove(room, roomId);
@@ -345,8 +335,8 @@ function processMove(room, roomId, playerId, lineType, row, col) {
     }
   }
 
-  if (room.bombTarget === playerId) {
-    // stay — waiting for human to pick target
+  if (room.sloopTarget === playerId) {
+    // stay — waiting for human to pick a cell
   } else if (room.pendingExtraMove === playerId) {
     room.pendingExtraMove = null;
   } else if (!scored) {
@@ -361,7 +351,7 @@ function scheduleBotMove(room, roomId) {
   if (!room.vsComputer || room.status !== 'playing') return;
   const bot = room.players.find(p => p.isBot);
   if (!bot || room.turn !== bot.id) return;
-  if (room.bombTarget && room.bombTarget !== bot.id) return;
+  if (room.sloopTarget && room.sloopTarget !== bot.id) return;
   setTimeout(() => {
     try {
       const r = rooms[roomId];
@@ -398,7 +388,7 @@ io.on('connection', (socket) => {
           if (r.turn === oldId)             r.turn = socket.id;
           if (r.skipNext === oldId)         r.skipNext = socket.id;
           if (r.shieldedPlayer === oldId)   r.shieldedPlayer = socket.id;
-          if (r.bombTarget === oldId)       r.bombTarget = socket.id;
+          if (r.sloopTarget === oldId)      r.sloopTarget = socket.id;
           if (r.ratTarget === oldId)        r.ratTarget = socket.id;
           if (r.pendingExtraMove === oldId) r.pendingExtraMove = socket.id;
           socket.join(pending.roomId);
@@ -437,17 +427,20 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'playing') return;
     if (room.turn !== socket.id) return;
-    if (room.bombTarget) return;
+    if (room.sloopTarget) return;
     processMove(room, roomId, socket.id, lineType, row, col);
   });
 
-  socket.on('bomb-remove', ({ roomId, lineType, row, col }) => {
+  socket.on('sloop-cell', ({ roomId, row, col }) => {
     const room = rooms[roomId];
-    if (!room || room.bombTarget !== socket.id) return;
+    if (!room || room.sloopTarget !== socket.id) return;
+    const { size } = room;
+    if (row < 0 || row >= size || col < 0 || col >= size) return;
+    if (room.grid[row * size + col].owner) return; // geen owned cellen
     const { hLines, vLines } = room.lines;
-    if (lineType === 'h' && hLines[row][col] && hLines[row][col] !== socket.id) hLines[row][col] = null;
-    else if (lineType === 'v' && vLines[row][col] && vLines[row][col] !== socket.id) vLines[row][col] = null;
-    room.bombTarget = null;
+    hLines[row][col]   = null; hLines[row+1][col] = null;
+    vLines[row][col]   = null; vLines[row][col+1] = null;
+    room.sloopTarget = null;
     advanceTurn(room, socket.id);
     io.to(roomId).emit('room-update', sanitizeRoom(room));
     if (room.vsComputer) scheduleBotMove(room, roomId);
@@ -519,7 +512,7 @@ function sanitizeRoom(room) {
     grid: room.grid, lines: room.lines,
     players: room.players.map(({ playerId: _pid, ...p }) => p), scores: room.scores,
     turn: room.turn, status: room.status, vsComputer: room.vsComputer, winner: room.winner,
-    bombTarget: room.bombTarget, skipNext: room.skipNext,
+    sloopTarget: room.sloopTarget, skipNext: room.skipNext,
     pendingExtraMove: room.pendingExtraMove,
   };
 }

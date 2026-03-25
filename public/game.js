@@ -26,9 +26,9 @@ const THEME = {
 
 // ---- Specials info (for reveal popup) ----
 const SPECIALS_INFO = {
-  hitman: { emoji: '🚔', name: 'Politie-inval', myDesc: 'Tegenstander slaat zijn volgende beurt over', oppDesc: 'Jij slaat je volgende beurt over' },
+  hitman: { emoji: '🚓', name: 'Politie-inval', myDesc: 'Tegenstander slaat zijn volgende beurt over', oppDesc: 'Jij slaat je volgende beurt over' },
   bribe:  { emoji: '💸', name: 'Smeergeld',     myDesc: 'Jij speelt direct nog een beurt',             oppDesc: 'Tegenstander speelt nog een extra beurt' },
-  bomb:   { emoji: '🔧', name: 'Sabotage',      myDesc: 'Kies een lijn van de tegenstander om te verwijderen', oppDesc: 'Tegenstander verwijdert een van jouw lijnen' },
+  sloop:  { emoji: '💥', name: 'Sloop',         myDesc: 'Kies een vakje — alle lijnen eromheen worden verwijderd', oppDesc: 'Tegenstander sloopt alle lijnen rondom een vakje' },
 };
 
 // ---- City map palette ----
@@ -48,8 +48,9 @@ const UNPLACED_LINE_COLOR = 'rgba(255,255,255,0.045)';
 // ---- State ----
 let room     = null;
 let myId     = null;
-let waitingForBomb = false;
-let hoveredLine    = null;
+let waitingForSloop    = false;
+let hoveredLine        = null;
+let hoveredSloopCell   = null;
 let rafId          = null;
 let lastTouchLine  = null;
 let claimedFlashes = []; // {idx, color, t}
@@ -167,10 +168,10 @@ socket.on('room-update', (updatedRoom) => {
   if (wasWaiting && room.status === 'playing') showToast('De stad ligt open. Maak je zet.', 'info');
   if (room.status === 'finished') showGameOver();
 
-  waitingForBomb = room.bombTarget === myId;
+  waitingForSloop = room.sloopTarget === myId;
 
-  if (waitingForBomb) {
-    setHint('🔧 Kies een lijn van de tegenstander — die gaat eruit.', 'danger');
+  if (waitingForSloop) {
+    setHint('💥 Kies een vakje — alle lijnen eromheen worden verwijderd.', 'danger');
   } else if (room.turn === myId && room.status === 'playing') {
     setHint('Jouw beurt — trek een grens.', 'my-turn');
   } else if (room.status === 'playing') {
@@ -330,6 +331,24 @@ function drawBoard() {
     }
   }
 
+  // Sloop mode: highlight hoverable cells (unclaimed only)
+  if (waitingForSloop) {
+    const sloopPulse = 0.55 + 0.45 * Math.sin(Date.now() / 220);
+    for (let row = 0; row < size; row++) {
+      for (let col = 0; col < size; col++) {
+        if (grid[row * size + col].owner) continue;
+        const dx = OFFSET_X + col * CELL_SIZE, dy = OFFSET_Y + row * CELL_SIZE;
+        const sloopHov = hoveredSloopCell?.row === row && hoveredSloopCell?.col === col;
+        if (sloopHov) {
+          ctx.fillStyle = `rgba(255,80,20,${(0.30 + 0.25 * sloopPulse).toFixed(3)})`;
+        } else {
+          ctx.fillStyle = `rgba(255,80,20,${(0.08 + 0.08 * sloopPulse).toFixed(3)})`;
+        }
+        ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
+      }
+    }
+  }
+
   // Faint indicators for unplaced line positions
   ctx.strokeStyle = UNPLACED_LINE_COLOR;
   ctx.lineWidth   = 2;
@@ -468,12 +487,6 @@ function drawLine(type, row, col, color, ghost) {
   ctx.shadowColor = ghost ? 'transparent' : color;
   ctx.shadowBlur  = ghost ? 0 : 12;
 
-  if (waitingForBomb && !ghost) {
-    ctx.strokeStyle = '#ff3322';
-    ctx.shadowColor = '#ff5500';
-    ctx.shadowBlur  = 14;
-  }
-
   ctx.beginPath();
   if (type === 'h') {
     ctx.moveTo(x1, y1); ctx.lineTo(x1 + CELL_SIZE, y1);
@@ -490,50 +503,66 @@ function isTouchDevice() { return window.matchMedia('(pointer: coarse)').matches
 
 canvas.addEventListener('mousemove', (e) => {
   if (!room || room.status !== 'playing') return;
-  if (room.turn !== myId && !waitingForBomb) return;
+  if (room.turn !== myId && !waitingForSloop) return;
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
-  const prev = JSON.stringify(hoveredLine);
-  hoveredLine = getLineAt(mx, my);
-  if (JSON.stringify(hoveredLine) !== prev && !rafId) drawBoard();
+  if (waitingForSloop) {
+    const prev = JSON.stringify(hoveredSloopCell);
+    hoveredSloopCell = getCellAt(mx, my);
+    if (JSON.stringify(hoveredSloopCell) !== prev && !rafId) drawBoard();
+  } else {
+    const prev = JSON.stringify(hoveredLine);
+    hoveredLine = getLineAt(mx, my);
+    if (JSON.stringify(hoveredLine) !== prev && !rafId) drawBoard();
+  }
 });
 
-canvas.addEventListener('mouseleave', () => { hoveredLine = null; if (!rafId) drawBoard(); });
+canvas.addEventListener('mouseleave', () => { hoveredLine = null; hoveredSloopCell = null; if (!rafId) drawBoard(); });
 
 // Touch support
 canvas.addEventListener('touchmove', (e) => {
   e.preventDefault();
   if (!room || room.status !== 'playing') return;
-  if (room.turn !== myId && !waitingForBomb) return;
+  if (room.turn !== myId && !waitingForSloop) return;
   const touch = e.touches[0];
   const rect  = canvas.getBoundingClientRect();
   const mx = touch.clientX - rect.left;
   const my = touch.clientY - rect.top;
-  const prev = JSON.stringify(hoveredLine);
-  hoveredLine   = getLineAt(mx, my);
-  lastTouchLine = hoveredLine;
-  if (JSON.stringify(hoveredLine) !== prev && !rafId) drawBoard();
+  if (waitingForSloop) {
+    const prev = JSON.stringify(hoveredSloopCell);
+    hoveredSloopCell = getCellAt(mx, my);
+    lastTouchLine = null;
+    if (JSON.stringify(hoveredSloopCell) !== prev && !rafId) drawBoard();
+  } else {
+    const prev = JSON.stringify(hoveredLine);
+    hoveredLine   = getLineAt(mx, my);
+    lastTouchLine = hoveredLine;
+    if (JSON.stringify(hoveredLine) !== prev && !rafId) drawBoard();
+  }
 }, { passive: false });
 
 canvas.addEventListener('touchend', (e) => {
   e.preventDefault();
   const line = lastTouchLine;
-  lastTouchLine = null;
-  hoveredLine   = null;
+  const sloopCell = hoveredSloopCell;
+  lastTouchLine    = null;
+  hoveredLine      = null;
+  hoveredSloopCell = null;
   if (!room || room.status !== 'playing') { if (!rafId) drawBoard(); return; }
-  if (!line) { if (!rafId) drawBoard(); return; }
 
-  if (waitingForBomb) {
-    const { hLines, vLines } = room.lines;
-    const ownerId = line.type === 'h' ? hLines[line.row]?.[line.col] : vLines[line.row]?.[line.col];
-    if (ownerId && ownerId !== myId) {
-      socket.emit('bomb-remove', { roomId, lineType: line.type, row: line.row, col: line.col });
-      waitingForBomb = false;
+  if (waitingForSloop) {
+    const touch = e.changedTouches[0];
+    const rect  = canvas.getBoundingClientRect();
+    const cell  = sloopCell || getCellAt(touch.clientX - rect.left, touch.clientY - rect.top);
+    if (cell) {
+      socket.emit('sloop-cell', { roomId, row: cell.row, col: cell.col });
+      waitingForSloop = false;
     }
     if (!rafId) drawBoard(); return;
   }
 
+  if (!line) { if (!rafId) drawBoard(); return; }
   if (room.turn !== myId) { if (!rafId) drawBoard(); return; }
   const { hLines, vLines } = room.lines;
   if (line.type === 'h' && hLines[line.row]?.[line.col]) { if (!rafId) drawBoard(); return; }
@@ -550,8 +579,12 @@ canvas.addEventListener('touchstart', (e) => {
   const rect  = canvas.getBoundingClientRect();
   const mx = touch.clientX - rect.left;
   const my = touch.clientY - rect.top;
-  hoveredLine   = getLineAt(mx, my);
-  lastTouchLine = hoveredLine;
+  if (waitingForSloop) {
+    hoveredSloopCell = getCellAt(mx, my);
+  } else {
+    hoveredLine   = getLineAt(mx, my);
+    lastTouchLine = hoveredLine;
+  }
   if (!rafId) drawBoard();
 }, { passive: false });
 
@@ -560,20 +593,19 @@ function handleBoardClick(e) {
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
-  if (room.turn !== myId && !waitingForBomb) return;
+  if (room.turn !== myId && !waitingForSloop) return;
 
-  const line = hoveredLine || getLineAt(mx, my, CELL_SIZE * 0.44);
-  if (!line) return;
-
-  if (waitingForBomb) {
-    const { hLines, vLines } = room.lines;
-    const ownerId = line.type === 'h' ? hLines[line.row]?.[line.col] : vLines[line.row]?.[line.col];
-    if (ownerId && ownerId !== myId) {
-      socket.emit('bomb-remove', { roomId, lineType: line.type, row: line.row, col: line.col });
-      waitingForBomb = false;
+  if (waitingForSloop) {
+    const cell = getCellAt(mx, my);
+    if (cell) {
+      socket.emit('sloop-cell', { roomId, row: cell.row, col: cell.col });
+      waitingForSloop = false;
     }
     return;
   }
+
+  const line = hoveredLine || getLineAt(mx, my, CELL_SIZE * 0.44);
+  if (!line) return;
 
   if (room.turn !== myId) return;
   const { hLines, vLines } = room.lines;
@@ -609,6 +641,15 @@ function getLineAt(mx, my, snapOverride) {
       if (dx < bestDist && my > ly && my < ly + CELL_SIZE) { best = { type: 'v', row, col }; bestDist = dx; }
     }
   return best;
+}
+
+function getCellAt(mx, my) {
+  if (!room) return null;
+  const col = Math.floor((mx - OFFSET_X) / CELL_SIZE);
+  const row = Math.floor((my - OFFSET_Y) / CELL_SIZE);
+  if (row < 0 || row >= room.size || col < 0 || col >= room.size) return null;
+  if (room.grid[row * room.size + col].owner) return null;
+  return { row, col };
 }
 
 function getMyColor() {
