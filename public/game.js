@@ -584,19 +584,21 @@ function getLineAt(mx, my, snapOverride) {
   if (!room) return null;
   const size = room.size;
   const SNAP = snapOverride || snapZone();
+  let best = null, bestDist = SNAP;
+
   for (let row = 0; row <= size; row++)
     for (let col = 0; col < size; col++) {
       const lx = OFFSET_X + col * CELL_SIZE, ly = OFFSET_Y + row * CELL_SIZE;
-      if (Math.abs(my - ly) < SNAP && mx > lx && mx < lx + CELL_SIZE)
-        return { type: 'h', row, col };
+      const dy = Math.abs(my - ly);
+      if (dy < bestDist && mx > lx && mx < lx + CELL_SIZE) { best = { type: 'h', row, col }; bestDist = dy; }
     }
   for (let row = 0; row < size; row++)
     for (let col = 0; col <= size; col++) {
       const lx = OFFSET_X + col * CELL_SIZE, ly = OFFSET_Y + row * CELL_SIZE;
-      if (Math.abs(mx - lx) < SNAP && my > ly && my < ly + CELL_SIZE)
-        return { type: 'v', row, col };
+      const dx = Math.abs(mx - lx);
+      if (dx < bestDist && my > ly && my < ly + CELL_SIZE) { best = { type: 'v', row, col }; bestDist = dx; }
     }
-  return null;
+  return best;
 }
 
 function getMyColor() {

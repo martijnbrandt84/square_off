@@ -399,7 +399,28 @@ io.on('connection', (socket) => {
   socket.on('join-room', ({ roomId, playerName, gridSize, vsComputer }) => {
     let room = rooms[roomId];
     if (!room) { room = createRoom(roomId, gridSize || 'small', !!vsComputer); rooms[roomId] = room; }
-    if (room.players.length >= 2) { socket.emit('room-full'); return; }
+
+    // Reconnect: speler met zelfde naam mag een oude slot overnemen
+    if (room.players.length >= 2) {
+      const oldIdx = room.players.findIndex(p => !p.isBot && p.name === (playerName || 'Don'));
+      if (oldIdx !== -1) {
+        const oldId = room.players[oldIdx].id;
+        room.players[oldIdx].id = socket.id;
+        room.scores[socket.id] = room.scores[oldId] ?? 0;
+        delete room.scores[oldId];
+        if (room.turn === oldId) room.turn = socket.id;
+        if (room.skipNext === oldId) room.skipNext = socket.id;
+        if (room.shieldedPlayer === oldId) room.shieldedPlayer = socket.id;
+        if (room.bombTarget === oldId) room.bombTarget = socket.id;
+        if (room.ratTarget === oldId) room.ratTarget = socket.id;
+        if (room.pendingExtraMove === oldId) room.pendingExtraMove = socket.id;
+        socket.join(roomId);
+        socket.data.roomId = roomId;
+        io.to(roomId).emit('room-update', sanitizeRoom(room));
+        return;
+      }
+      socket.emit('room-full'); return;
+    }
     if (room.players.find(p => p.id === socket.id)) return;
 
     const colors = ['#c0392b', '#2475a8'];
