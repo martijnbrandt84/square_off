@@ -85,7 +85,9 @@ html, body {
 }
 
 body.lobby {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -354,7 +356,7 @@ body.lobby {
 
 /* ---- Responsive lobby ---- */
 @media (max-width: 480px) {
-  body.lobby { padding: 1.5rem 1.25rem 2rem; }
+  body.lobby { padding: 1rem 1.25rem; }
   .lobby-panel { padding: 1rem 1.1rem; }
 }
 
