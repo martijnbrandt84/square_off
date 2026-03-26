@@ -213,15 +213,12 @@
       }));
     }
 
-    // ---- Meandering smoke plumes ----
-    // Each plume is a rising spine of points; new points added at source each frame.
-    // X of each point oscillates slowly, creating a continuous meandering ribbon.
+    // ---- Two thick meandering smoke plumes, right side of screen ----
+    // Each plume: rising spine of points. X oscillates → organic meander.
+    // Drawn with multiple layered passes per segment for a soft, voluminous look.
     const PLUME_DEFS = [
-      { xf: 0.10, spd: 0.55, amp: 22, f1: 0.011, f2: 0.005, ph: 0.0 },
-      { xf: 0.29, spd: 0.42, amp: 30, f1: 0.009, f2: 0.004, ph: 1.2 },
-      { xf: 0.50, spd: 0.65, amp: 18, f1: 0.013, f2: 0.006, ph: 2.5 },
-      { xf: 0.70, spd: 0.48, amp: 26, f1: 0.010, f2: 0.005, ph: 3.8 },
-      { xf: 0.88, spd: 0.58, amp: 20, f1: 0.012, f2: 0.005, ph: 5.1 },
+      { xf: 0.72, spd: 0.50, amp: 38, f1: 0.009, f2: 0.004, ph: 0.0 },
+      { xf: 0.88, spd: 0.62, amp: 28, f1: 0.011, f2: 0.005, ph: 2.3 },
     ];
 
     let plumes = [];
@@ -229,38 +226,33 @@
     function initPlumes() {
       plumes = PLUME_DEFS.map(d => ({
         ...d,
-        pts: [],     // [{x, y}]  index 0 = oldest/top, last = newest/bottom
+        pts: [],
         srcX: d.xf * W,
       }));
     }
 
     function updatePlumes(dt, t) {
       const srcY = H * 0.91;
-      const STEP = 5;      // add a new spine-point every ~5px of rise
+      const STEP = 4;
       const MAX  = Math.ceil(H / STEP) + 20;
 
       for (const pl of plumes) {
         pl.srcX = pl.xf * W;
-
-        // Move all existing points up
         for (const p of pl.pts) p.y -= pl.spd * dt;
 
-        // Add new point when source is clear enough
         const last = pl.pts[pl.pts.length - 1];
         if (!last || last.y <= srcY - STEP) {
           pl.pts.push({ x: pl.srcX, y: srcY });
         }
 
-        // Remove points that drifted off the top
-        while (pl.pts.length > 0 && pl.pts[0].y < -60) pl.pts.shift();
+        while (pl.pts.length > 0 && pl.pts[0].y < -80) pl.pts.shift();
         if (pl.pts.length > MAX) pl.pts.shift();
 
-        // Recompute x for each point (oscillation keyed to y + slow time drift)
         for (const p of pl.pts) {
-          const ht = Math.max(0, (srcY - p.y) / H); // 0 at source, grows as it rises
+          const ht = Math.max(0, (srcY - p.y) / H);
           p.x = pl.srcX
             + Math.sin(p.y * pl.f1 + pl.ph + t * 0.003) * pl.amp * ht
-            + Math.sin(p.y * pl.f2 + pl.ph * 1.7 + t * 0.0015) * pl.amp * 0.45 * ht;
+            + Math.sin(p.y * pl.f2 + pl.ph * 1.7 + t * 0.0015) * pl.amp * 0.5 * ht;
         }
       }
     }
@@ -275,29 +267,31 @@
         const n = pl.pts.length;
         if (n < 3) continue;
 
-        // Draw each consecutive pair as a segment with per-segment width + alpha
-        // Iterate bottom→top (newest→oldest = index n-1 → 0)
-        for (let i = n - 1; i >= 1; i--) {
-          const p0 = pl.pts[i];     // lower (newer)
-          const p1 = pl.pts[i - 1]; // upper (older)
+        // Three layered passes: outer soft halo → mid body → tight core
+        const passes = [
+          { wBase: 10, wScale: 110, aScale: 0.18 },
+          { wBase:  5, wScale:  60, aScale: 0.28 },
+          { wBase:  2, wScale:  22, aScale: 0.38 },
+        ];
 
-          const ht = Math.max(0, (srcY - p0.y) / H); // 0=source, ~1=top
+        for (const pass of passes) {
+          for (let i = n - 1; i >= 1; i--) {
+            const p0 = pl.pts[i];
+            const p1 = pl.pts[i - 1];
+            const ht = Math.max(0, (srcY - p0.y) / H);
 
-          // Fade in over first 8% of height, hold, fade out in top 25%
-          const fadeIn  = Math.min(ht / 0.08, 1);
-          const fadeOut = ht > 0.75 ? Math.max(0, (1 - ht) / 0.25) : 1;
-          const alpha   = fadeIn * fadeOut * 0.42;
-          if (alpha < 0.005) continue;
+            const fadeIn  = Math.min(ht / 0.06, 1);
+            const fadeOut = ht > 0.72 ? Math.max(0, (1 - ht) / 0.28) : 1;
+            const alpha   = fadeIn * fadeOut * pass.aScale;
+            if (alpha < 0.004) continue;
 
-          // Width grows as smoke rises and spreads
-          const w = 1.5 + ht * 16;
-
-          ctx.lineWidth   = w;
-          ctx.strokeStyle = `rgba(20,14,17,${alpha.toFixed(3)})`;
-          ctx.beginPath();
-          ctx.moveTo(p0.x, p0.y);
-          ctx.lineTo(p1.x, p1.y);
-          ctx.stroke();
+            ctx.lineWidth   = pass.wBase + ht * pass.wScale;
+            ctx.strokeStyle = `rgba(18,13,16,${alpha.toFixed(3)})`;
+            ctx.beginPath();
+            ctx.moveTo(p0.x, p0.y);
+            ctx.lineTo(p1.x, p1.y);
+            ctx.stroke();
+          }
         }
       }
       ctx.restore();
@@ -328,22 +322,28 @@
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
 
-      // ── City fire glow — game palette: gold (#e88a0a) + crimson (#bc1528) ──
+      // ── City fire glow — flickering, game palette: gold + crimson ──
+      // Flicker: three overlapping sine waves at different speeds → organic fire pulse
+      const flicker =
+        0.78
+        + 0.10 * Math.sin(t * 0.18)
+        + 0.07 * Math.sin(t * 0.43 + 1.1)
+        + 0.05 * Math.sin(t * 0.97 + 2.3);
+
       const gy = H * 0.91;
-      // [cx fraction, ry offset, radius, r,g,b, alpha]
       const glows = [
-        { cx: 0.50, ry: H * 0.16, r: W * 0.85, c: '232,138,10',  a: 0.26 }, // gold — wide base
-        { cx: 0.28, ry: H * 0.10, r: W * 0.42, c: '188,21,40',   a: 0.20 }, // crimson — left
-        { cx: 0.72, ry: H * 0.09, r: W * 0.38, c: '224,148,40',  a: 0.18 }, // amber — right
-        { cx: 0.50, ry: H * 0.06, r: W * 0.28, c: '245,168,32',  a: 0.14 }, // gold2 — bright centre
-        { cx: 0.38, ry: H * 0.07, r: W * 0.22, c: '188,21,40',   a: 0.10 }, // crimson accent
+        { cx: 0.50, ry: H * 0.16, r: W * 0.85, c: '232,138,10',  a: 0.26 * flicker },
+        { cx: 0.28, ry: H * 0.10, r: W * 0.42, c: '188,21,40',   a: 0.20 * flicker },
+        { cx: 0.72, ry: H * 0.09, r: W * 0.38, c: '224,148,40',  a: 0.18 * flicker },
+        { cx: 0.50, ry: H * 0.06, r: W * 0.28, c: '245,168,32',  a: 0.14 * flicker },
+        { cx: 0.38, ry: H * 0.07, r: W * 0.22, c: '188,21,40',   a: 0.10 * flicker },
       ];
       for (const g of glows) {
         const grd = ctx.createRadialGradient(
           g.cx * W, gy + g.ry, 0,
           g.cx * W, gy,        g.r
         );
-        grd.addColorStop(0,    `rgba(${g.c},${g.a})`);
+        grd.addColorStop(0,    `rgba(${g.c},${g.a.toFixed(3)})`);
         grd.addColorStop(0.40, `rgba(${g.c},${(g.a * 0.28).toFixed(3)})`);
         grd.addColorStop(1,    'rgba(0,0,0,0)');
         ctx.fillStyle = grd;
