@@ -10,6 +10,12 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="lobby">
+
+  <!-- Splash screen -->
+  <div id="splash">
+    <img src="/images/title.png" alt="Square Off" class="splash-img">
+  </div>
+
   <div class="lobby-wrapper">
 
     <header class="lobby-header">
@@ -23,23 +29,20 @@
         <input type="text" id="playerName" maxlength="20" class="field-input" autocomplete="off">
       </div>
 
-      <div class="field-group">
-        <label class="field-label">Bord</label>
-        <div class="choice-row">
-          <button class="choice-btn active" data-size="small">
-            Snel <span>6 × 6</span>
-          </button>
-          <button class="choice-btn" data-size="large">
-            Uitgebreid <span>8 × 8</span>
-          </button>
+      <div class="field-row">
+        <div class="field-group field-half">
+          <label class="field-label">Bord</label>
+          <div class="choice-row">
+            <button class="choice-btn active" data-size="small">Snel <span>6×6</span></button>
+            <button class="choice-btn" data-size="large">Groot <span>8×8</span></button>
+          </div>
         </div>
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">Modus</label>
-        <div class="choice-row">
-          <button class="choice-btn active" id="modeMulti">👥 Multiplayer</button>
-          <button class="choice-btn" id="modeSingle">🤖 vs Computer</button>
+        <div class="field-group field-half">
+          <label class="field-label">Modus</label>
+          <div class="choice-row">
+            <button class="choice-btn active" id="modeMulti">👥 Multi</button>
+            <button class="choice-btn" id="modeSingle">🤖 CPU</button>
+          </div>
         </div>
       </div>
 
@@ -120,18 +123,24 @@
   </div>
 
   <script>
+    // ---- Splash ----
+    setTimeout(() => {
+      const splash = document.getElementById('splash');
+      splash.classList.add('splash-hidden');
+      setTimeout(() => splash.remove(), 700);
+    }, 2600);
+
     const BACKEND = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
       ? '' : 'https://squareoff-production.up.railway.app';
 
-    // Default name generator
     const POOL = [
       'Don Nero','Luca V.','Marco B.','Sofia R.','Dante','Giulia M.',
       'Carlo','Vincenzo','Nina','Il Duce','Fabio','Rosa','Matteo','Elisa'
     ];
     document.getElementById('playerName').value = POOL[Math.floor(Math.random() * POOL.length)];
 
-    let selectedSize  = 'small';
-    let vsComputer    = false;
+    let selectedSize = 'small';
+    let vsComputer   = false;
 
     function updateJoinVisibility() {
       document.getElementById('joinSection').style.display = vsComputer ? 'none' : 'block';
@@ -159,9 +168,7 @@
       updateJoinVisibility();
     });
 
-    function genRoomId() {
-      return Math.random().toString(36).slice(2, 10);
-    }
+    function genRoomId() { return Math.random().toString(36).slice(2, 10); }
 
     document.getElementById('createBtn').addEventListener('click', () => {
       const name = document.getElementById('playerName').value.trim() || 'Don';
