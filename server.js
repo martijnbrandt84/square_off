@@ -391,9 +391,7 @@ io.on('connection', (socket) => {
           delete r.scores[oldId];
           if (r.turn === oldId)             r.turn = socket.id;
           if (r.skipNext === oldId)         r.skipNext = socket.id;
-          if (r.shieldedPlayer === oldId)   r.shieldedPlayer = socket.id;
-          if (r.bombTarget === oldId)      r.bombTarget = socket.id;
-          if (r.ratTarget === oldId)        r.ratTarget = socket.id;
+          if (r.bombTarget === oldId)       r.bombTarget = socket.id;
           if (r.pendingExtraMove === oldId) r.pendingExtraMove = socket.id;
           socket.join(pending.roomId);
           socket.data.roomId = pending.roomId;
