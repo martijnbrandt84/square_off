@@ -54,6 +54,7 @@ let hoveredBombCell    = null;
 let rafId          = null;
 let lastTouchLine  = null;
 let claimedFlashes = []; // {idx, color, t}
+let bombFlashes    = []; // {row, col, t}
 
 // ---- SFX (Web Audio API — lazy init, iOS-safe) ----
 const SFX = (() => {
@@ -167,6 +168,9 @@ socket.on('room-update', (updatedRoom) => {
   updateUI();
   // Resize canvas only when room first loads or grid size changes, not on every turn
   if (!prevSize || prevSize !== room.size) resizeCanvas();
+  if (updatedRoom.bombedCell) {
+    bombFlashes.push({ row: updatedRoom.bombedCell.row, col: updatedRoom.bombedCell.col, t: Date.now() });
+  }
   drawBoard();
 
   if (wasWaiting && room.status === 'playing') showToast('De stad ligt open. Maak je zet.', 'info');
@@ -188,7 +192,7 @@ socket.on('room-update', (updatedRoom) => {
     setHint('', '');
   }
 
-  if (room.status === 'playing' || claimedFlashes.length > 0) startPulse();
+  if (room.status === 'playing' || claimedFlashes.length > 0 || bombFlashes.length > 0) startPulse();
   else stopPulse();
 });
 
@@ -203,7 +207,7 @@ function startPulse() {
   if (rafId) return;
   function tick() {
     if (room) drawBoard(); // drawBoard cleans stale flashes
-    const hasFlashes = claimedFlashes.length > 0;
+    const hasFlashes = claimedFlashes.length > 0 || bombFlashes.length > 0;
     if (room?.status === 'playing' || hasFlashes) {
       rafId = requestAnimationFrame(tick);
     } else {
@@ -249,8 +253,10 @@ function renderLocationBar(playerId, elementId) {
   const el = document.getElementById(elementId);
   if (!el) return;
   const owned = new Set(room.grid.filter(c => c.isKeyLocation && c.owner === playerId).map(c => c.keyDef.id));
+  // Always render the same emoji (🏦) — just vary opacity via CSS class.
+  // Mixing ◌ and 🏦 causes different rendered heights → layout shifts every turn.
   el.innerHTML = THEME.keyLocations.map(kd =>
-    `<span class="loc-pip${owned.has(kd.id) ? ' owned' : ''}" title="${kd.name}">${owned.has(kd.id) ? '🏦' : '◌'}</span>`
+    `<span class="loc-pip${owned.has(kd.id) ? ' owned' : ''}" title="${kd.name}">🏦</span>`
   ).join('');
 }
 
@@ -320,21 +326,20 @@ function drawBoard() {
     for (let col = 0; col < size; col++)
       drawCityBlock(grid[row * size + col], OFFSET_X + col * CELL_SIZE, OFFSET_Y + row * CELL_SIZE, CELL_SIZE);
 
-  // Danger overlay — unclaimed cells with 3 sides (pulsing yellow)
-  const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 280);
-  for (let row = 0; row < size; row++) {
-    for (let col = 0; col < size; col++) {
-      const cell = grid[row * size + col];
-      if (!cell.owner) {
-        const sides = (hLines[row][col] ? 1 : 0) + (hLines[row+1][col] ? 1 : 0) +
-                      (vLines[row][col] ? 1 : 0) + (vLines[row][col+1] ? 1 : 0);
-        if (sides === 3) {
-          const dx = OFFSET_X + col * CELL_SIZE, dy = OFFSET_Y + row * CELL_SIZE;
-          ctx.fillStyle = `rgba(240,200,20,${(0.18 + 0.22 * pulse).toFixed(3)})`;
-          ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
-        }
-      }
-    }
+  // Bomb explosion animations — flash + expanding ring on bombed cell
+  const _bNow = Date.now();
+  bombFlashes = bombFlashes.filter(f => _bNow - f.t < 900);
+  for (const f of bombFlashes) {
+    const age  = (_bNow - f.t) / 900;
+    const dx   = OFFSET_X + f.col * CELL_SIZE, dy = OFFSET_Y + f.row * CELL_SIZE;
+    const exp  = age * CELL_SIZE * 0.5;
+    // Inner fill fades from white-orange
+    ctx.fillStyle = `rgba(255,120,20,${((1 - age) * 0.65).toFixed(3)})`;
+    ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
+    // Expanding ring
+    ctx.strokeStyle = `rgba(255,180,40,${((1 - age) * 0.9).toFixed(3)})`;
+    ctx.lineWidth = Math.max(1, 4 * (1 - age));
+    ctx.strokeRect(dx + SI - exp, dy + SI - exp, CELL_SIZE - SI * 2 + exp * 2, CELL_SIZE - SI * 2 + exp * 2);
   }
 
   // Bomb mode: highlight hoverable cells (unclaimed only)

@@ -329,7 +329,9 @@ function processMove(room, roomId, playerId, lineType, row, col) {
       }
       room.bombTarget = null;
       advanceTurn(room, playerId);
-      io.to(roomId).emit('room-update', sanitizeRoom(room));
+      const botBombUpdate = sanitizeRoom(room);
+      if (target) botBombUpdate.bombedCell = target;
+      io.to(roomId).emit('room-update', botBombUpdate);
       scheduleBotMove(room, roomId);
       return;
     }
@@ -438,13 +440,15 @@ io.on('connection', (socket) => {
     if (!room || room.bombTarget !== socket.id) return;
     const { size } = room;
     if (row < 0 || row >= size || col < 0 || col >= size) return;
-    if (room.grid[row * size + col].owner) return; // geen owned cellen
+    if (room.grid[row * size + col].owner) return;
     const { hLines, vLines } = room.lines;
     hLines[row][col]   = null; hLines[row+1][col] = null;
     vLines[row][col]   = null; vLines[row][col+1] = null;
     room.bombTarget = null;
     advanceTurn(room, socket.id);
-    io.to(roomId).emit('room-update', sanitizeRoom(room));
+    const bombUpdate = sanitizeRoom(room);
+    bombUpdate.bombedCell = { row, col };
+    io.to(roomId).emit('room-update', bombUpdate);
     if (room.vsComputer) scheduleBotMove(room, roomId);
   });
 
