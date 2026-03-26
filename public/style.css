@@ -407,8 +407,9 @@ body.game-page {
 /* ---- Scoreboard ---- */
 .scoreboard {
   display: flex; align-items: stretch;
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 1rem;
   gap: 0.5rem;
+  height: 88px; /* locked — prevents layout shift from emoji pip changes */
 }
 
 /* Base card */
@@ -615,7 +616,7 @@ body.game-page {
 
   /* More breathing room on mobile sides */
   .topbar-nav { padding: 0.28rem 1rem; gap: 0.32rem; }
-  .scoreboard { padding: 0.3rem 1rem; gap: 0.25rem; }
+  .scoreboard { padding: 0.3rem 1rem; gap: 0.25rem; height: 60px; }
 
   .score-card { padding: 0.28rem 0.42rem; gap: 0.3rem; border-radius: 3px; }
   .score-avatar-img { width: 44px; height: 44px; }

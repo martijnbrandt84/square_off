@@ -26,9 +26,9 @@ const THEME = {
 
 // ---- Specials info (for reveal popup) ----
 const SPECIALS_INFO = {
-  hitman: { emoji: '🚓', name: 'Politieauto', myDesc: 'Tegenstander slaat een beurt over',       oppDesc: 'Jij slaat een beurt over' },
-  bribe:  { emoji: '💸', name: 'Smeergeld',   myDesc: 'Jij speelt direct nog een extra beurt',  oppDesc: 'Tegenstander speelt nog een extra beurt' },
-  bomb:   { emoji: '💣', name: 'Bom',         myDesc: 'Kies een vakje — alle lijnen eromheen worden verwijderd', oppDesc: 'Tegenstander kiest een vakje om op te bombarderen' },
+  hitman: { emoji: '🚓', name: 'Razzia',       myDesc: 'De smeris pakt je tegenstander — die slaat een beurt over', oppDesc: 'Razzia! Jij slaat een beurt over' },
+  bribe:  { emoji: '💸', name: 'Steekpenning', myDesc: 'Geld praat — jij speelt een extra beurt',                   oppDesc: 'Tegenstander heeft gesmeerd en speelt een extra beurt' },
+  bomb:   { emoji: '💣', name: 'Handgranaat',  myDesc: 'Kies een vakje — alle grenzen eromheen worden opgeblazen',  oppDesc: 'Tegenstander gooit een granaat — kies een doelwit' },
 };
 
 // ---- City map palette — matches title image deep indigo-navy night ----
@@ -161,9 +161,12 @@ socket.on('room-update', (updatedRoom) => {
   }
 
   updateLog(updatedRoom);
+  const prevSize = room?.size;
   room = updatedRoom;
   myId = socket.id;
   updateUI();
+  // Resize canvas only when room first loads or grid size changes, not on every turn
+  if (!prevSize || prevSize !== room.size) resizeCanvas();
   drawBoard();
 
   if (wasWaiting && room.status === 'playing') showToast('De stad ligt open. Maak je zet.', 'info');
@@ -305,7 +308,6 @@ function resizeCanvas() {
 // ---- Draw board ----
 function drawBoard() {
   if (!room) return;
-  resizeCanvas();
   const { size, grid, lines } = room;
   const { hLines, vLines }    = lines;
 
@@ -737,4 +739,9 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-window.addEventListener('resize', () => { if (room && !rafId) drawBoard(); });
+window.addEventListener('resize', () => {
+  if (!room) return;
+  _canvasLogW = 0; _canvasLogH = 0; // force full recalc on actual window resize
+  resizeCanvas();
+  if (!rafId) drawBoard();
+});

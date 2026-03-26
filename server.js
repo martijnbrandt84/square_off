@@ -29,9 +29,9 @@ app.post('/create-room', express.json(), (req, res) => res.json({ roomId: uuidv4
 // Swap this block to change themes without touching game logic.
 // ================================================================
 const THEME_SPECIALS = [
-  { id: 'hitman', emoji: '🚓', name: 'Politieauto', desc: 'Tegenstander slaat een beurt over' },
-  { id: 'bribe',  emoji: '💸', name: 'Smeergeld',   desc: 'Speel direct een extra beurt' },
-  { id: 'bomb',   emoji: '💣', name: 'Bom',         desc: 'Verwijder alle lijnen rondom een gekozen vakje' },
+  { id: 'hitman', emoji: '🚓', name: 'Razzia',        desc: 'Tegenstander slaat een beurt over' },
+  { id: 'bribe',  emoji: '💸', name: 'Steekpenning',  desc: 'Speel direct een extra beurt' },
+  { id: 'bomb',   emoji: '💣', name: 'Handgranaat',   desc: 'Verwijder alle lijnen rondom een gekozen vakje' },
 ];
 
 const KEY_LOCATION_DEFS = [
@@ -294,9 +294,6 @@ function processMove(room, roomId, playerId, lineType, row, col) {
 
   room.lastActivity = Date.now();
 
-  // Snapshot whether player already had a pending extra move BEFORE scoring
-  const hadPendingExtraBefore = room.pendingExtraMove === playerId;
-
   const completed = checkCompletedCells(room.grid, room.lines, size);
   let scored = false;
 
@@ -339,14 +336,14 @@ function processMove(room, roomId, playerId, lineType, row, col) {
   }
 
   if (room.bombTarget === playerId) {
-    // stay — waiting for human to pick a cell
-  } else if (hadPendingExtraBefore) {
-    // consume a pre-existing extra turn (stay on turn)
-    room.pendingExtraMove = null;
-  } else if (!scored) {
+    // stay — waiting for human to pick a bomb target
+  } else if (scored) {
+    // turn stays from scoring; steekpenning preserved for next non-scoring move
+  } else if (room.pendingExtraMove === playerId) {
+    room.pendingExtraMove = null; // consume steekpenning extra turn
+  } else {
     advanceTurn(room, playerId);
   }
-  // If scored AND bribe just activated: pendingExtraMove stays set for the next move
 
   io.to(roomId).emit('room-update', sanitizeRoom(room));
   if (room.vsComputer) scheduleBotMove(room, roomId);
