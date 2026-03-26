@@ -29,9 +29,7 @@ app.post('/create-room', express.json(), (req, res) => res.json({ roomId: uuidv4
 // Swap this block to change themes without touching game logic.
 // ================================================================
 const THEME_SPECIALS = [
-  { id: 'hitman', emoji: '🚓', name: 'Politie-inval', desc: 'Tegenstander slaat volgende beurt over' },
-  { id: 'bribe',  emoji: '💸', name: 'Smeergeld',     desc: 'Speel direct een extra beurt' },
-  { id: 'sloop',  emoji: '💥', name: 'Sloop',         desc: 'Verwijder alle lijnen rondom een vakje' },
+  { id: 'bribe', emoji: '💸', name: 'Smeergeld', desc: 'Speel direct een extra beurt' },
 ];
 
 const KEY_LOCATION_DEFS = [
@@ -294,6 +292,9 @@ function processMove(room, roomId, playerId, lineType, row, col) {
 
   room.lastActivity = Date.now();
 
+  // Snapshot whether player already had a pending extra move BEFORE scoring
+  const hadPendingExtraBefore = room.pendingExtraMove === playerId;
+
   const completed = checkCompletedCells(room.grid, room.lines, size);
   let scored = false;
 
@@ -337,11 +338,13 @@ function processMove(room, roomId, playerId, lineType, row, col) {
 
   if (room.sloopTarget === playerId) {
     // stay — waiting for human to pick a cell
-  } else if (room.pendingExtraMove === playerId) {
+  } else if (hadPendingExtraBefore) {
+    // consume a pre-existing extra turn (stay on turn)
     room.pendingExtraMove = null;
   } else if (!scored) {
     advanceTurn(room, playerId);
   }
+  // If scored AND bribe just activated: pendingExtraMove stays set for the next move
 
   io.to(roomId).emit('room-update', sanitizeRoom(room));
   if (room.vsComputer) scheduleBotMove(room, roomId);

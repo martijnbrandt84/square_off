@@ -26,9 +26,7 @@ const THEME = {
 
 // ---- Specials info (for reveal popup) ----
 const SPECIALS_INFO = {
-  hitman: { emoji: '🚓', name: 'Politie-inval', myDesc: 'Tegenstander slaat zijn volgende beurt over', oppDesc: 'Jij slaat je volgende beurt over' },
-  bribe:  { emoji: '💸', name: 'Smeergeld',     myDesc: 'Jij speelt direct nog een beurt',             oppDesc: 'Tegenstander speelt nog een extra beurt' },
-  sloop:  { emoji: '💥', name: 'Sloop',         myDesc: 'Kies een vakje — alle lijnen eromheen worden verwijderd', oppDesc: 'Tegenstander sloopt alle lijnen rondom een vakje' },
+  bribe: { emoji: '💸', name: 'Smeergeld', myDesc: 'Jij speelt direct nog een extra beurt', oppDesc: 'Tegenstander speelt nog een extra beurt' },
 };
 
 // ---- City map palette — matches title image deep indigo-navy night ----
@@ -104,6 +102,7 @@ const DOT_R = 3;
 let CELL_SIZE = 72;
 let OFFSET_X  = 24;
 let OFFSET_Y  = 24;
+let _canvasLogW = 0, _canvasLogH = 0; // cache to avoid jitter on every frame
 
 // ---- Persistent player ID (survives page refresh) ----
 function getPlayerId() {
@@ -291,6 +290,9 @@ function resizeCanvas() {
   const dpr  = window.devicePixelRatio || 1;
   const logW = size * CELL_SIZE + OFFSET_X * 2;
   const logH = size * CELL_SIZE + OFFSET_Y * 2;
+  // Only actually resize DOM when dimensions change — prevents per-frame jitter
+  if (logW === _canvasLogW && logH === _canvasLogH) return;
+  _canvasLogW = logW; _canvasLogH = logH;
   canvas.width        = Math.round(logW * dpr);
   canvas.height       = Math.round(logH * dpr);
   canvas.style.width  = logW + 'px';
