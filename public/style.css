@@ -43,85 +43,23 @@ body.lobby {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 3.5rem 1.5rem 4rem;
+  padding: 3rem 1.5rem 4rem;
   background-color: var(--bg);
   background-image:
-    /* stars */
-    radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,0.55) 0%, transparent 100%),
-    radial-gradient(1px 1px at 28% 9%,  rgba(255,255,255,0.35) 0%, transparent 100%),
-    radial-gradient(1px 1px at 44% 22%, rgba(255,255,255,0.45) 0%, transparent 100%),
-    radial-gradient(1px 1px at 61% 7%,  rgba(255,255,255,0.40) 0%, transparent 100%),
-    radial-gradient(1px 1px at 73% 15%, rgba(255,255,255,0.50) 0%, transparent 100%),
-    radial-gradient(1px 1px at 88% 11%, rgba(255,255,255,0.30) 0%, transparent 100%),
-    radial-gradient(1px 1px at 36% 4%,  rgba(255,255,255,0.45) 0%, transparent 100%),
-    radial-gradient(1px 1px at 55% 28%, rgba(255,255,255,0.25) 0%, transparent 100%),
-    radial-gradient(1px 1px at 80% 32%, rgba(255,255,255,0.35) 0%, transparent 100%),
-    radial-gradient(1px 1px at 6%  35%, rgba(255,255,255,0.30) 0%, transparent 100%),
-    radial-gradient(1px 1px at 92% 26%, rgba(255,255,255,0.40) 0%, transparent 100%),
-    /* warm gold glow from below (street lamps) */
-    radial-gradient(ellipse 70% 35% at 50% 105%, rgba(201,148,58,0.12) 0%, transparent 65%),
-    /* deep night sky gradient */
-    linear-gradient(to bottom, #060712 0%, #080a18 50%, #0a0d1f 100%);
+    radial-gradient(1px 1px at 12% 8%,  rgba(255,255,255,0.50) 0%, transparent 100%),
+    radial-gradient(1px 1px at 28% 14%, rgba(255,255,255,0.35) 0%, transparent 100%),
+    radial-gradient(1px 1px at 44% 5%,  rgba(255,255,255,0.45) 0%, transparent 100%),
+    radial-gradient(1px 1px at 61% 18%, rgba(255,255,255,0.40) 0%, transparent 100%),
+    radial-gradient(1px 1px at 73% 9%,  rgba(255,255,255,0.50) 0%, transparent 100%),
+    radial-gradient(1px 1px at 88% 22%, rgba(255,255,255,0.30) 0%, transparent 100%),
+    radial-gradient(1px 1px at 36% 28%, rgba(255,255,255,0.25) 0%, transparent 100%),
+    radial-gradient(1px 1px at 80% 12%, rgba(255,255,255,0.35) 0%, transparent 100%),
+    radial-gradient(1px 1px at 6%  20%, rgba(255,255,255,0.30) 0%, transparent 100%),
+    radial-gradient(1px 1px at 92% 7%,  rgba(255,255,255,0.40) 0%, transparent 100%),
+    radial-gradient(ellipse 60% 30% at 50% 100%, rgba(201,148,58,0.10) 0%, transparent 60%),
+    linear-gradient(to bottom, #050610 0%, #080a18 60%, #0c0f20 100%);
 }
 
-/* NYC skyline silhouette */
-body.lobby::before {
-  content: '';
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  height: 200px;
-  background:
-    /* buildings as box-shadows via layered linear-gradients */
-    linear-gradient(to top, #020307 0%, transparent 100%);
-  background-color: transparent;
-  /* Silhouette via clip-path / box-shadow trick using a single element */
-  background-image:
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307),
-    linear-gradient(#020307, #020307);
-  background-size:
-    28px 120px, 18px 90px, 40px 150px, 22px 110px, 60px 80px,
-    16px 130px, 34px 100px, 24px 70px,  50px 160px, 20px 95px,
-    30px 110px, 44px 75px,  18px 140px, 36px 88px,  26px 105px;
-  background-position:
-    2%   bottom, 7%   bottom, 12%  bottom, 18%  bottom, 24%  bottom,
-    30%  bottom, 36%  bottom, 42%  bottom, 50%  bottom, 57%  bottom,
-    63%  bottom, 70%  bottom, 78%  bottom, 86%  bottom, 93%  bottom;
-  background-repeat: no-repeat;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Lit windows on skyline */
-body.lobby::after {
-  content: '';
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  height: 200px;
-  background-image:
-    radial-gradient(2px 2px at 12.5% 42%, rgba(201,148,58,0.8) 0%, transparent 100%),
-    radial-gradient(2px 2px at 50.8% 28%, rgba(201,148,58,0.7) 0%, transparent 100%),
-    radial-gradient(2px 2px at 50.4% 42%, rgba(201,148,58,0.6) 0%, transparent 100%),
-    radial-gradient(2px 2px at 63.5% 36%, rgba(201,148,58,0.8) 0%, transparent 100%),
-    radial-gradient(2px 2px at 36.8% 52%, rgba(26,122,110,0.7)  0%, transparent 100%),
-    radial-gradient(2px 2px at 86.3% 24%, rgba(201,148,58,0.6) 0%, transparent 100%),
-    radial-gradient(2px 2px at 24.2% 58%, rgba(168,25,46,0.8)  0%, transparent 100%),
-    radial-gradient(2px 2px at 78.5% 48%, rgba(201,148,58,0.5) 0%, transparent 100%);
-  pointer-events: none;
-  z-index: 0;
-}
 
 .lobby-wrapper {
   width: 100%;
@@ -136,61 +74,21 @@ body.lobby::after {
 /* ---- Title ---- */
 .lobby-header { text-align: center; }
 
-.title-eyebrow {
-  font-family: var(--font-ui);
-  font-size: 0.58rem;
-  font-weight: 600;
-  letter-spacing: 0.55em;
-  text-transform: uppercase;
-  color: var(--teal2);
-  margin-bottom: 1.1rem;
-  opacity: 0.9;
-}
-
-.lobby-header h1 {
-  font-family: var(--font-display);
-  font-size: clamp(3.2rem, 12vw, 5.2rem);
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  color: var(--text);
-  text-shadow:
-    0 0 60px rgba(201,148,58,0.25),
-    0 2px 4px rgba(0,0,0,0.8);
-  position: relative;
-  display: inline-block;
-}
-
-.title-rule {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  justify-content: center;
-  margin: 1.1rem 0;
-}
-.title-rule::before,
-.title-rule::after {
-  content: '';
-  flex: 1;
-  max-width: 60px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--gold));
-}
-.title-rule::after {
-  background: linear-gradient(90deg, var(--gold), transparent);
-}
-.title-rule-icon {
-  font-size: 0.7rem;
-  color: var(--gold);
-  opacity: 0.8;
+.lobby-title-img {
+  width: clamp(220px, 70vw, 340px);
+  height: auto;
+  display: block;
+  margin: 0 auto 0.6rem;
+  filter: drop-shadow(0 0 40px rgba(201,148,58,0.30)) drop-shadow(0 8px 24px rgba(0,0,0,0.7));
 }
 
 .title-sub {
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: var(--text2);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   line-height: 1.5;
+  text-transform: uppercase;
 }
 
 /* ---- Main panel ---- */
@@ -595,6 +493,13 @@ body.game-page {
 }
 
 .score-avatar { font-size: 1.5rem; flex-shrink: 0; line-height: 1; }
+.score-avatar-img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+}
 
 .score-details {
   flex: 1;
@@ -940,6 +845,7 @@ body.game-page {
   }
 
   .score-avatar { font-size: 1.2rem; }
+  .score-avatar-img { width: 38px; height: 38px; }
 
   .score-name {
     font-size: 0.72rem;
