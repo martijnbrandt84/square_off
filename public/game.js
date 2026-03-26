@@ -16,11 +16,11 @@ document.getElementById('roomCode').textContent = roomId;
 // ---- Theme ----
 const THEME = {
   keyLocations: [
-    { id: 'bank',       emoji: '🏦', name: 'De Bank',       glow: '#e8a020' },
-    { id: 'casino',     emoji: '🏦', name: 'Het Casino',    glow: '#e8a020' },
-    { id: 'haven',      emoji: '🏦', name: 'De Haven',      glow: '#e8a020' },
-    { id: 'stadhuis',   emoji: '🏦', name: 'Het Stadhuis',  glow: '#e8a020' },
-    { id: 'gevangenis', emoji: '🏦', name: 'De Gevangenis', glow: '#e8a020' },
+    { id: 'bank',       emoji: '🏦', name: 'De Bank',       glow: '#e88a0a' },
+    { id: 'casino',     emoji: '🏦', name: 'Het Casino',    glow: '#e88a0a' },
+    { id: 'haven',      emoji: '🏦', name: 'De Haven',      glow: '#e88a0a' },
+    { id: 'stadhuis',   emoji: '🏦', name: 'Het Stadhuis',  glow: '#e88a0a' },
+    { id: 'gevangenis', emoji: '🏦', name: 'De Gevangenis', glow: '#e88a0a' },
   ],
 };
 
@@ -31,15 +31,15 @@ const SPECIALS_INFO = {
   sloop:  { emoji: '💥', name: 'Sloop',         myDesc: 'Kies een vakje — alle lijnen eromheen worden verwijderd', oppDesc: 'Tegenstander sloopt alle lijnen rondom een vakje' },
 };
 
-// ---- City map palette ----
+// ---- City map palette — matches title image deep indigo-navy night ----
 const MAP = {
-  bg:      '#141018',   // NYC night asphalt — warm-dark purple-grey
+  bg:      '#0e1128',   // NYC midnight asphalt — deep indigo matching title sky
   terrain: {
-    alley:    { fill: '#0e0c12', emojis: ['🌳','🌲','🌿','🌳','🌲'] },
-    street:   { fill: '#100e16', emojis: ['🏠','🏡','🏘️','🏠','🏡'] },
-    district: { fill: '#0f0d18', emojis: ['🏢','🏬','🏪','🏣','🏨'] },
+    alley:    { fill: '#080a1e', emojis: ['🌳','🌲','🌿','🌳','🌲'] },
+    street:   { fill: '#0a0c22', emojis: ['🏠','🏡','🏘️','🏠','🏡'] },
+    district: { fill: '#0c0e28', emojis: ['🏢','🏬','🏪','🏣','🏨'] },
   },
-  dot: '#1a1624',
+  dot: '#171a38',
 };
 
 const SI = 3; // street inset per side (street width = SI*2 = 6px)
@@ -470,7 +470,7 @@ function drawCityBlock(cell, x, y, cs) {
         ctx.strokeRect(x + SI + 1, y + SI + 1, cs - SI * 2 - 2, cs - SI * 2 - 2);
       }
     } else {
-      ctx.fillStyle = 'rgba(210, 150, 10, 0.30)';
+      ctx.fillStyle = 'rgba(232, 138, 10, 0.28)';
       ctx.fillRect(x + SI, y + SI, cs - SI * 2, cs - SI * 2);
     }
   }
