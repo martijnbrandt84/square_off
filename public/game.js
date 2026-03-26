@@ -33,13 +33,13 @@ const SPECIALS_INFO = {
 
 // ---- City map palette ----
 const MAP = {
-  bg:      '#1c2030',   // street / asphalt color
+  bg:      '#141018',   // NYC night asphalt — warm-dark purple-grey
   terrain: {
-    alley:    { fill: '#0e1208', emojis: ['🌳','🌲','🌿','🌳','🌲'] },
-    street:   { fill: '#12141e', emojis: ['🏠','🏡','🏘️','🏠','🏡'] },
-    district: { fill: '#0f1220', emojis: ['🏢','🏬','🏪','🏣','🏨'] },
+    alley:    { fill: '#0e0c12', emojis: ['🌳','🌲','🌿','🌳','🌲'] },
+    street:   { fill: '#100e16', emojis: ['🏠','🏡','🏘️','🏠','🏡'] },
+    district: { fill: '#0f0d18', emojis: ['🏢','🏬','🏪','🏣','🏨'] },
   },
-  dot: '#161928',
+  dot: '#1a1624',
 };
 
 const SI = 3; // street inset per side (street width = SI*2 = 6px)
