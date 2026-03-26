@@ -26,7 +26,9 @@ const THEME = {
 
 // ---- Specials info (for reveal popup) ----
 const SPECIALS_INFO = {
-  bribe: { emoji: '💸', name: 'Smeergeld', myDesc: 'Jij speelt direct nog een extra beurt', oppDesc: 'Tegenstander speelt nog een extra beurt' },
+  hitman: { emoji: '🚓', name: 'Politieauto', myDesc: 'Tegenstander slaat een beurt over',       oppDesc: 'Jij slaat een beurt over' },
+  bribe:  { emoji: '💸', name: 'Smeergeld',   myDesc: 'Jij speelt direct nog een extra beurt',  oppDesc: 'Tegenstander speelt nog een extra beurt' },
+  bomb:   { emoji: '💣', name: 'Bom',         myDesc: 'Kies een vakje — alle lijnen eromheen worden verwijderd', oppDesc: 'Tegenstander kiest een vakje om op te bombarderen' },
 };
 
 // ---- City map palette — matches title image deep indigo-navy night ----
@@ -46,9 +48,9 @@ const UNPLACED_LINE_COLOR = 'rgba(255,255,255,0.045)';
 // ---- State ----
 let room     = null;
 let myId     = null;
-let waitingForSloop    = false;
+let waitingForBomb     = false;
 let hoveredLine        = null;
-let hoveredSloopCell   = null;
+let hoveredBombCell    = null;
 let rafId          = null;
 let lastTouchLine  = null;
 let claimedFlashes = []; // {idx, color, t}
@@ -167,10 +169,10 @@ socket.on('room-update', (updatedRoom) => {
   if (wasWaiting && room.status === 'playing') showToast('De stad ligt open. Maak je zet.', 'info');
   if (room.status === 'finished') showGameOver();
 
-  waitingForSloop = room.sloopTarget === myId;
+  waitingForBomb = room.bombTarget === myId;
 
-  if (waitingForSloop) {
-    setHint('💥 Kies een vakje — alle lijnen eromheen worden verwijderd.', 'danger');
+  if (waitingForBomb) {
+    setHint('💣 Kies een vakje — alle lijnen eromheen worden verwijderd.', 'danger');
   } else if (room.turn === myId && room.status === 'playing') {
     setHint('Jouw beurt — trek een grens.', 'my-turn');
   } else if (room.status === 'playing') {
@@ -333,14 +335,14 @@ function drawBoard() {
     }
   }
 
-  // Sloop mode: highlight hoverable cells (unclaimed only)
-  if (waitingForSloop) {
+  // Bomb mode: highlight hoverable cells (unclaimed only)
+  if (waitingForBomb) {
     const sloopPulse = 0.55 + 0.45 * Math.sin(Date.now() / 220);
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
         if (grid[row * size + col].owner) continue;
         const dx = OFFSET_X + col * CELL_SIZE, dy = OFFSET_Y + row * CELL_SIZE;
-        const sloopHov = hoveredSloopCell?.row === row && hoveredSloopCell?.col === col;
+        const sloopHov = hoveredBombCell?.row === row && hoveredBombCell?.col === col;
         if (sloopHov) {
           ctx.fillStyle = `rgba(255,80,20,${(0.30 + 0.25 * sloopPulse).toFixed(3)})`;
         } else {
@@ -505,14 +507,14 @@ function isTouchDevice() { return window.matchMedia('(pointer: coarse)').matches
 
 canvas.addEventListener('mousemove', (e) => {
   if (!room || room.status !== 'playing') return;
-  if (room.turn !== myId && !waitingForSloop) return;
+  if (room.turn !== myId && !waitingForBomb) return;
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
-  if (waitingForSloop) {
-    const prev = JSON.stringify(hoveredSloopCell);
-    hoveredSloopCell = getCellAt(mx, my);
-    if (JSON.stringify(hoveredSloopCell) !== prev && !rafId) drawBoard();
+  if (waitingForBomb) {
+    const prev = JSON.stringify(hoveredBombCell);
+    hoveredBombCell = getCellAt(mx, my);
+    if (JSON.stringify(hoveredBombCell) !== prev && !rafId) drawBoard();
   } else {
     const prev = JSON.stringify(hoveredLine);
     hoveredLine = getLineAt(mx, my);
@@ -520,22 +522,22 @@ canvas.addEventListener('mousemove', (e) => {
   }
 });
 
-canvas.addEventListener('mouseleave', () => { hoveredLine = null; hoveredSloopCell = null; if (!rafId) drawBoard(); });
+canvas.addEventListener('mouseleave', () => { hoveredLine = null; hoveredBombCell = null; if (!rafId) drawBoard(); });
 
 // Touch support
 canvas.addEventListener('touchmove', (e) => {
   e.preventDefault();
   if (!room || room.status !== 'playing') return;
-  if (room.turn !== myId && !waitingForSloop) return;
+  if (room.turn !== myId && !waitingForBomb) return;
   const touch = e.touches[0];
   const rect  = canvas.getBoundingClientRect();
   const mx = touch.clientX - rect.left;
   const my = touch.clientY - rect.top;
-  if (waitingForSloop) {
-    const prev = JSON.stringify(hoveredSloopCell);
-    hoveredSloopCell = getCellAt(mx, my);
+  if (waitingForBomb) {
+    const prev = JSON.stringify(hoveredBombCell);
+    hoveredBombCell = getCellAt(mx, my);
     lastTouchLine = null;
-    if (JSON.stringify(hoveredSloopCell) !== prev && !rafId) drawBoard();
+    if (JSON.stringify(hoveredBombCell) !== prev && !rafId) drawBoard();
   } else {
     const prev = JSON.stringify(hoveredLine);
     hoveredLine   = getLineAt(mx, my);
@@ -547,19 +549,19 @@ canvas.addEventListener('touchmove', (e) => {
 canvas.addEventListener('touchend', (e) => {
   e.preventDefault();
   const line = lastTouchLine;
-  const sloopCell = hoveredSloopCell;
+  const sloopCell = hoveredBombCell;
   lastTouchLine    = null;
   hoveredLine      = null;
-  hoveredSloopCell = null;
+  hoveredBombCell = null;
   if (!room || room.status !== 'playing') { if (!rafId) drawBoard(); return; }
 
-  if (waitingForSloop) {
+  if (waitingForBomb) {
     const touch = e.changedTouches[0];
     const rect  = canvas.getBoundingClientRect();
     const cell  = sloopCell || getCellAt(touch.clientX - rect.left, touch.clientY - rect.top);
     if (cell) {
-      socket.emit('sloop-cell', { roomId, row: cell.row, col: cell.col });
-      waitingForSloop = false;
+      socket.emit('bomb-cell', { roomId, row: cell.row, col: cell.col });
+      waitingForBomb = false;
     }
     if (!rafId) drawBoard(); return;
   }
@@ -581,8 +583,8 @@ canvas.addEventListener('touchstart', (e) => {
   const rect  = canvas.getBoundingClientRect();
   const mx = touch.clientX - rect.left;
   const my = touch.clientY - rect.top;
-  if (waitingForSloop) {
-    hoveredSloopCell = getCellAt(mx, my);
+  if (waitingForBomb) {
+    hoveredBombCell = getCellAt(mx, my);
   } else {
     hoveredLine   = getLineAt(mx, my);
     lastTouchLine = hoveredLine;
@@ -595,13 +597,13 @@ function handleBoardClick(e) {
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
-  if (room.turn !== myId && !waitingForSloop) return;
+  if (room.turn !== myId && !waitingForBomb) return;
 
-  if (waitingForSloop) {
+  if (waitingForBomb) {
     const cell = getCellAt(mx, my);
     if (cell) {
-      socket.emit('sloop-cell', { roomId, row: cell.row, col: cell.col });
-      waitingForSloop = false;
+      socket.emit('bomb-cell', { roomId, row: cell.row, col: cell.col });
+      waitingForBomb = false;
     }
     return;
   }

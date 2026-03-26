@@ -4,7 +4,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #060818;
+  --bg:        #07091e;
   --surface:   #0b0f28;
   --surface2:  #0f1330;
   --border:    #1a2050;
@@ -51,7 +51,7 @@ html, body {
 
 #splash {
   position: fixed; inset: 0; z-index: 9999;
-  background: #040610;
+  background: #07091e;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -62,9 +62,6 @@ html, body {
 .splash-img {
   width: clamp(280px, 82vw, 500px);
   height: auto;
-  filter:
-    drop-shadow(0 0 48px rgba(232,138,10,0.55))
-    drop-shadow(0 0 16px rgba(255,100,0,0.30));
   animation: splashPop 0.55s cubic-bezier(0.34,1.56,0.64,1) both;
 }
 @keyframes splashPop {
@@ -95,7 +92,7 @@ body.lobby {
     radial-gradient(1px 1px at 54% 22%, rgba(255,255,255,0.25) 0%, transparent 100%),
     radial-gradient(ellipse 80% 28% at 50% 100%, rgba(232,138,10,0.18) 0%, transparent 60%),
     radial-gradient(ellipse 40% 18% at 50% 100%, rgba(255,120,0,0.10) 0%, transparent 50%),
-    linear-gradient(to bottom, #040610 0%, #060818 40%, #08091a 100%);
+    linear-gradient(to bottom, #07091e 0%, #07091e 40%, #07091e 100%);
 }
 
 .lobby-wrapper {
@@ -116,10 +113,6 @@ body.lobby {
   height: auto;
   display: block;
   margin: 0 auto 0.35rem;
-  filter:
-    drop-shadow(0 0 28px rgba(232,138,10,0.45))
-    drop-shadow(0 0 10px rgba(255,100,0,0.22))
-    drop-shadow(0 10px 24px rgba(0,0,0,0.80));
 }
 
 .title-sub {
@@ -425,7 +418,7 @@ body.game-page {
   padding: 0.45rem 0.7rem;
   border: 1px solid var(--border2);
   border-radius: 4px;
-  position: relative; overflow: hidden;
+  position: relative;
   transition: box-shadow 0.4s;
 }
 
