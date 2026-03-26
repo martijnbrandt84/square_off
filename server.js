@@ -23,6 +23,7 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/room/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'game.html')));
 app.post('/create-room', express.json(), (req, res) => res.json({ roomId: uuidv4().slice(0, 8) }));
+app.get('/version', (req, res) => res.json({ version: '2026-03-26', specials: THEME_SPECIALS.map(s => s.emoji) }));
 
 // ================================================================
 // THEME — Cosa Nostra
