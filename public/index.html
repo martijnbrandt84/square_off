@@ -286,9 +286,9 @@
             if (alpha < 0.004) continue;
 
             // Colour rises from warm near-black at source → cool mid-grey at top
-            const r = Math.round(22  + ht * 72);
-            const g = Math.round(16  + ht * 62);
-            const b = Math.round(20  + ht * 68);
+            const r = Math.round(22  + ht * 52);
+            const g = Math.round(16  + ht * 44);
+            const b = Math.round(20  + ht * 49);
             ctx.lineWidth   = pass.wBase + ht * pass.wScale;
             ctx.strokeStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
             ctx.beginPath();
