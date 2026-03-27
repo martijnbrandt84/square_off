@@ -181,7 +181,6 @@ socket.on('room-update', (updatedRoom) => {
   }
   drawBoard();
 
-  if (wasWaiting && room.status === 'playing') showToast('De stad ligt open. Maak je zet.', 'info');
   if (room.status === 'finished') showGameOver();
 
   waitingForBomb = room.bombTarget === myId;
