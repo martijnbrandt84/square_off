@@ -324,77 +324,6 @@ function drawBoard() {
     for (let col = 0; col < size; col++)
       drawCityBlock(grid[row * size + col], OFFSET_X + col * CELL_SIZE, OFFSET_Y + row * CELL_SIZE, CELL_SIZE);
 
-  // Bomb explosion — multi-phase: flash → shockwave ring → wall sparks → afterglow
-  const _bNow = Date.now();
-  const BOMB_DUR = 1100;
-  bombFlashes = bombFlashes.filter(f => _bNow - f.t < BOMB_DUR);
-  for (const f of bombFlashes) {
-    const age = (_bNow - f.t) / BOMB_DUR;   // 0→1 over full duration
-    const cx  = OFFSET_X + f.col * CELL_SIZE + CELL_SIZE / 2;
-    const cy  = OFFSET_Y + f.row * CELL_SIZE + CELL_SIZE / 2;
-    const dx  = OFFSET_X + f.col * CELL_SIZE;
-    const dy  = OFFSET_Y + f.row * CELL_SIZE;
-
-    // 1. Bright core flash (age 0→0.25): peaks at age 0.08, then fades
-    if (age < 0.30) {
-      const flashA = age < 0.08
-        ? age / 0.08
-        : 1 - (age - 0.08) / 0.22;
-      ctx.fillStyle = `rgba(255,240,180,${(flashA * 0.92).toFixed(3)})`;
-      ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
-    }
-
-    // 2. Expanding shockwave ring (age 0.04→0.65)
-    if (age > 0.04 && age < 0.65) {
-      const rAge = (age - 0.04) / 0.61;
-      const rad  = CELL_SIZE * (0.3 + rAge * 1.4);
-      const rA   = (1 - rAge) * 0.85;
-      ctx.beginPath();
-      ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(255,160,30,${rA.toFixed(3)})`;
-      ctx.lineWidth   = Math.max(1, 6 * (1 - rAge));
-      ctx.stroke();
-      // Second ring slightly behind
-      if (rAge > 0.15) {
-        const rad2 = CELL_SIZE * (0.3 + (rAge - 0.15) * 1.4);
-        const rA2  = (1 - rAge) * 0.45;
-        ctx.beginPath();
-        ctx.arc(cx, cy, rad2, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255,90,10,${rA2.toFixed(3)})`;
-        ctx.lineWidth   = Math.max(1, 10 * (1 - rAge));
-        ctx.stroke();
-      }
-    }
-
-    // 3. Wall sparks — 4 glowing lines where walls were removed (age 0.08→0.55)
-    if (age > 0.08 && age < 0.55) {
-      const sAge = (age - 0.08) / 0.47;
-      const sA   = (1 - sAge) * 0.9;
-      const sW   = Math.max(1, 7 * (1 - sAge));
-      ctx.strokeStyle = `rgba(255,200,60,${sA.toFixed(3)})`;
-      ctx.lineWidth   = sW;
-      ctx.lineCap     = 'round';
-      ctx.shadowColor = 'rgba(255,160,20,0.8)';
-      ctx.shadowBlur  = 8 * (1 - sAge);
-      // Top wall
-      ctx.beginPath(); ctx.moveTo(dx + SI, dy); ctx.lineTo(dx + CELL_SIZE - SI, dy); ctx.stroke();
-      // Bottom wall
-      ctx.beginPath(); ctx.moveTo(dx + SI, dy + CELL_SIZE); ctx.lineTo(dx + CELL_SIZE - SI, dy + CELL_SIZE); ctx.stroke();
-      // Left wall
-      ctx.beginPath(); ctx.moveTo(dx, dy + SI); ctx.lineTo(dx, dy + CELL_SIZE - SI); ctx.stroke();
-      // Right wall
-      ctx.beginPath(); ctx.moveTo(dx + CELL_SIZE, dy + SI); ctx.lineTo(dx + CELL_SIZE, dy + CELL_SIZE - SI); ctx.stroke();
-      ctx.shadowBlur  = 0;
-    }
-
-    // 4. Afterglow on cell (age 0.25→1.0)
-    if (age > 0.25) {
-      const gAge = (age - 0.25) / 0.75;
-      ctx.fillStyle = `rgba(220,80,10,${((1 - gAge) * 0.40).toFixed(3)})`;
-      ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
-    }
-  }
-
   // Bomb mode: highlight hoverable cells (unclaimed only)
   if (waitingForBomb) {
     const sloopPulse = 0.55 + 0.45 * Math.sin(Date.now() / 220);
@@ -464,6 +393,70 @@ function drawBoard() {
     ctx.fillRect(fx + SI, fy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
   }
 
+  // Bomb explosion — drawn after lines so rings appear on top
+  // multi-phase: flash → shockwave rings → wall sparks → afterglow
+  const _bNow = Date.now();
+  const BOMB_DUR = 1200;
+  bombFlashes = bombFlashes.filter(f => _bNow - f.t < BOMB_DUR);
+  ctx.save();
+  for (const f of bombFlashes) {
+    const age = (_bNow - f.t) / BOMB_DUR;
+    const cx  = OFFSET_X + f.col * CELL_SIZE + CELL_SIZE / 2;
+    const cy  = OFFSET_Y + f.row * CELL_SIZE + CELL_SIZE / 2;
+    const dx  = OFFSET_X + f.col * CELL_SIZE;
+    const dy  = OFFSET_Y + f.row * CELL_SIZE;
+
+    // 1. Bright core flash (peaks at age 0.07, gone by 0.28)
+    if (age < 0.28) {
+      const flashA = age < 0.07 ? age / 0.07 : 1 - (age - 0.07) / 0.21;
+      ctx.fillStyle = `rgba(255,240,180,${(flashA * 0.95).toFixed(3)})`;
+      ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
+    }
+
+    // 2. Two expanding shockwave rings (age 0.04→0.70)
+    if (age > 0.04 && age < 0.70) {
+      const rAge = (age - 0.04) / 0.66;
+      ctx.shadowColor = 'rgba(255,140,20,0.6)';
+      ctx.shadowBlur  = 12 * (1 - rAge);
+      const rad = CELL_SIZE * (0.25 + rAge * 1.6);
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,160,30,${((1 - rAge) * 0.90).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(1, 7 * (1 - rAge));
+      ctx.stroke();
+      if (rAge > 0.12) {
+        const rad2 = CELL_SIZE * (0.25 + (rAge - 0.12) * 1.6);
+        ctx.beginPath(); ctx.arc(cx, cy, rad2, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,80,10,${((1 - rAge) * 0.50).toFixed(3)})`;
+        ctx.lineWidth   = Math.max(1, 12 * (1 - rAge));
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+    }
+
+    // 3. Wall sparks — glowing lines at all 4 wall positions (age 0.06→0.50)
+    if (age > 0.06 && age < 0.50) {
+      const sAge = (age - 0.06) / 0.44;
+      ctx.shadowColor = 'rgba(255,200,40,0.9)';
+      ctx.shadowBlur  = 10 * (1 - sAge);
+      ctx.strokeStyle = `rgba(255,210,70,${((1 - sAge) * 0.95).toFixed(3)})`;
+      ctx.lineWidth   = Math.max(1, 8 * (1 - sAge));
+      ctx.lineCap     = 'round';
+      ctx.beginPath(); ctx.moveTo(dx + SI, dy);           ctx.lineTo(dx + CELL_SIZE - SI, dy);           ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(dx + SI, dy+CELL_SIZE); ctx.lineTo(dx + CELL_SIZE - SI, dy+CELL_SIZE); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(dx, dy + SI);           ctx.lineTo(dx, dy + CELL_SIZE - SI);           ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(dx+CELL_SIZE, dy + SI); ctx.lineTo(dx+CELL_SIZE, dy + CELL_SIZE - SI); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // 4. Orange afterglow (age 0.22→1.0)
+    if (age > 0.22) {
+      const gAge = (age - 0.22) / 0.78;
+      ctx.fillStyle = `rgba(210,70,5,${((1 - gAge) * 0.38).toFixed(3)})`;
+      ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
+    }
+  }
+  ctx.restore();
+
   // Bank & special emojis — drawn last so lines never cover them
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.globalAlpha = 1;
@@ -477,7 +470,7 @@ function drawBoard() {
         ctx.fillText('🏦', cx, cy);
       } else if (cell.special && !cell.owner && SPECIALS_INFO[cell.special.id]) {
         ctx.font = `${Math.floor(CELL_SIZE * 0.44)}px serif`;
-        ctx.fillText(cell.special.emoji, cx, cy);
+        ctx.fillText(SPECIALS_INFO[cell.special.id].emoji, cx, cy);
       }
     }
   }
