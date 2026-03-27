@@ -228,7 +228,6 @@ function updateUI() {
     document.getElementById('p1name').textContent = p1.name;
     document.getElementById('p1card').style.borderColor = p1.color;
     document.getElementById('p1turn').style.opacity = room.turn === p1.id ? '1' : '0';
-    renderLocationBar(p1.id, 'p1locs');
     const p1banks = room.grid.filter(c => c.isKeyLocation && c.owner === p1.id).length;
     document.getElementById('p1score').textContent = p1banks;
   }
@@ -236,7 +235,6 @@ function updateUI() {
     document.getElementById('p2name').textContent = p2.name;
     document.getElementById('p2card').style.borderColor = p2.color;
     document.getElementById('p2turn').style.opacity = room.turn === p2.id ? '1' : '0';
-    renderLocationBar(p2.id, 'p2locs');
     const p2banks = room.grid.filter(c => c.isKeyLocation && c.owner === p2.id).length;
     document.getElementById('p2score').textContent = p2banks;
   }
@@ -477,7 +475,7 @@ function drawBoard() {
       if (cell.isKeyLocation) {
         ctx.font = `${Math.floor(CELL_SIZE * 0.55)}px serif`;
         ctx.fillText('🏦', cx, cy);
-      } else if (cell.special && !cell.owner) {
+      } else if (cell.special && !cell.owner && SPECIALS_INFO[cell.special.id]) {
         ctx.font = `${Math.floor(CELL_SIZE * 0.44)}px serif`;
         ctx.fillText(cell.special.emoji, cx, cy);
       }
