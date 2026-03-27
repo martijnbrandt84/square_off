@@ -137,18 +137,46 @@ function createRoom(roomId, gridSize = 'medium', vsComputer = false) {
     players: [], scores: {},
     turn: null, turnCount: 0,
     status: 'waiting', vsComputer, winner: null,
-    skipNext: null, pendingExtraMove: null, bombTarget: null,
+    skipNext: null, pendingExtraMove: null, bombTarget: null, razziaPenalty: false,
     lastActivity: Date.now(),
   };
 }
 
 function applySpecialPower(room, playerId, special) {
-  const opponentId = room.players.find(p => p.id !== playerId)?.id;
   switch (special.id) {
-    case 'hitman': room.skipNext = playerId; break;
+    case 'hitman': room.razziaPenalty = true; break;  // cancels own scoring bonus
     case 'bribe':  room.pendingExtraMove = playerId; break;
     case 'bomb':   room.bombTarget = playerId; break;
   }
+}
+
+// Remove walls of bombed cell; unclaim adjacent cells that lose a wall they needed.
+// Returns list of {row,col} cells that were unclaimed.
+function applyBomb(room, bombRow, bombCol) {
+  const { size, lines, grid } = room;
+  const { hLines, vLines } = lines;
+  hLines[bombRow][bombCol]   = null;
+  hLines[bombRow+1][bombCol] = null;
+  vLines[bombRow][bombCol]   = null;
+  vLines[bombRow][bombCol+1] = null;
+
+  const unclaimed = [];
+  const neighbors = [
+    { row: bombRow-1, col: bombCol },
+    { row: bombRow+1, col: bombCol },
+    { row: bombRow,   col: bombCol-1 },
+    { row: bombRow,   col: bombCol+1 },
+  ];
+  for (const { row, col } of neighbors) {
+    if (row < 0 || row >= size || col < 0 || col >= size) continue;
+    const cell = grid[row * size + col];
+    if (!cell.owner) continue;
+    if (getCellSides(lines, size, row, col) < 4) {
+      unclaimed.push({ row, col });
+      cell.owner = null;
+    }
+  }
+  return unclaimed;
 }
 
 // ================================================================
@@ -322,26 +350,28 @@ function processMove(room, roomId, playerId, lineType, row, col) {
     const bot = room.players.find(p => p.isBot);
     if (bot && playerId === bot.id) {
       const target = computeBotBombTarget(room);
-      if (target) {
-        const { hLines, vLines } = room.lines;
-        const { row, col } = target;
-        hLines[row][col] = null; hLines[row+1][col] = null;
-        vLines[row][col] = null; vLines[row][col+1] = null;
-      }
+      let unclaimed = [];
+      if (target) unclaimed = applyBomb(room, target.row, target.col);
       room.bombTarget = null;
       advanceTurn(room, playerId);
       const botBombUpdate = sanitizeRoom(room);
-      if (target) botBombUpdate.bombedCell = target;
+      if (target) botBombUpdate.bombedCell = { row: target.row, col: target.col, unclaimed };
       io.to(roomId).emit('room-update', botBombUpdate);
       scheduleBotMove(room, roomId);
       return;
     }
   }
 
+  const razziaPenalty = room.razziaPenalty;
+  room.razziaPenalty = false;
+
   if (room.bombTarget === playerId) {
     // stay — waiting for human to pick a bomb target
+  } else if (razziaPenalty) {
+    // Razzia: cancel scoring bonus, turn ends immediately
+    advanceTurn(room, playerId);
   } else if (scored) {
-    // turn stays from scoring; steekpenning preserved for next non-scoring move
+    // Normal scoring bonus: keep turn; steekpenning preserved for later
   } else if (room.pendingExtraMove === playerId) {
     room.pendingExtraMove = null; // consume steekpenning extra turn
   } else {
@@ -440,13 +470,11 @@ io.on('connection', (socket) => {
     const { size } = room;
     if (row < 0 || row >= size || col < 0 || col >= size) return;
     if (room.grid[row * size + col].owner) return;
-    const { hLines, vLines } = room.lines;
-    hLines[row][col]   = null; hLines[row+1][col] = null;
-    vLines[row][col]   = null; vLines[row][col+1] = null;
+    const unclaimed = applyBomb(room, row, col);
     room.bombTarget = null;
     advanceTurn(room, socket.id);
     const bombUpdate = sanitizeRoom(room);
-    bombUpdate.bombedCell = { row, col };
+    bombUpdate.bombedCell = { row, col, unclaimed };
     io.to(roomId).emit('room-update', bombUpdate);
     if (room.vsComputer) scheduleBotMove(room, roomId);
   });
