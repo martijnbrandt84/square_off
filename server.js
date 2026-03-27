@@ -145,7 +145,7 @@ function createRoom(roomId, gridSize = 'medium', vsComputer = false) {
 function applySpecialPower(room, playerId, special) {
   const opponentId = room.players.find(p => p.id !== playerId)?.id;
   switch (special.id) {
-    case 'hitman': room.skipNext = opponentId; break;
+    case 'hitman': room.skipNext = playerId; break;
     case 'bribe':  room.pendingExtraMove = playerId; break;
     case 'bomb':   room.bombTarget = playerId; break;
   }

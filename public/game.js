@@ -26,7 +26,7 @@ const THEME = {
 
 // ---- Specials info (for reveal popup) ----
 const SPECIALS_INFO = {
-  hitman: { emoji: '🚓', name: 'Razzia',       myDesc: 'De smeris pakt je tegenstander — die slaat een beurt over', oppDesc: 'Razzia! Jij slaat een beurt over' },
+  hitman: { emoji: '🚓', name: 'Razzia',       myDesc: 'Gepakt! De smeris arresteert jou — jij slaat een beurt over', oppDesc: 'Tegenstander werd gepakt door de smeris — die slaat een beurt over' },
   bribe:  { emoji: '💸', name: 'Steekpenning', myDesc: 'Geld praat — jij speelt een extra beurt',                   oppDesc: 'Tegenstander heeft gesmeerd en speelt een extra beurt' },
   bomb:   { emoji: '💣', name: 'Handgranaat',  myDesc: 'Kies een vakje — alle grenzen eromheen worden opgeblazen',  oppDesc: 'Tegenstander gooit een granaat — kies een doelwit' },
 };
