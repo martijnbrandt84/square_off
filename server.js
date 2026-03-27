@@ -6,7 +6,7 @@ const path = require('path');
 
 process.on('uncaughtException',  (err) => console.error('Fout:', err));
 process.on('unhandledRejection', (err) => console.error('Promise fout:', err));
-const SERVER_VERSION = '2026-03-27-v3';
+const SERVER_VERSION = '2026-03-27-v4';
 console.log(`[Square Off] server starting — version ${SERVER_VERSION}`);
 
 const app = express();
@@ -347,23 +347,6 @@ function processMove(room, roomId, playerId, lineType, row, col) {
     return;
   }
 
-  // Bot auto-resolves bomb
-  if (room.vsComputer && room.bombTarget === playerId) {
-    const bot = room.players.find(p => p.isBot);
-    if (bot && playerId === bot.id) {
-      const target = computeBotBombTarget(room);
-      let unclaimed = [];
-      if (target) unclaimed = applyBomb(room, target.row, target.col);
-      room.bombTarget = null;
-      advanceTurn(room, playerId);
-      const botBombUpdate = sanitizeRoom(room);
-      if (target) botBombUpdate.bombedCell = { row: target.row, col: target.col, unclaimed };
-      io.to(roomId).emit('room-update', botBombUpdate);
-      scheduleBotMove(room, roomId);
-      return;
-    }
-  }
-
   const razziaPenalty = room.razziaPenalty;
   room.razziaPenalty = false;
 
@@ -393,6 +376,21 @@ function scheduleBotMove(room, roomId) {
     try {
       const r = rooms[roomId];
       if (!r || r.status !== 'playing' || r.turn !== bot.id) return;
+
+      // Resolve pending bomb BEFORE making a line move (prevents loop)
+      if (r.bombTarget === bot.id) {
+        const target = computeBotBombTarget(r);
+        let unclaimed = [];
+        if (target) unclaimed = applyBomb(r, target.row, target.col);
+        r.bombTarget = null;
+        advanceTurn(r, bot.id);
+        const bombUpdate = sanitizeRoom(r);
+        if (target) bombUpdate.bombedCell = { row: target.row, col: target.col, unclaimed };
+        io.to(roomId).emit('room-update', bombUpdate);
+        scheduleBotMove(r, roomId);
+        return;
+      }
+
       const move = computeBotMove(r);
       if (move) processMove(r, roomId, bot.id, move.type, move.row, move.col);
     } catch (err) { console.error('Bot fout:', err); }
