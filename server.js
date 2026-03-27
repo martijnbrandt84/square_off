@@ -6,6 +6,8 @@ const path = require('path');
 
 process.on('uncaughtException',  (err) => console.error('Fout:', err));
 process.on('unhandledRejection', (err) => console.error('Promise fout:', err));
+const SERVER_VERSION = '2026-03-27-v3';
+console.log(`[Square Off] server starting — version ${SERVER_VERSION}`);
 
 const app = express();
 const server = http.createServer(app);
@@ -23,7 +25,7 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/room/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'game.html')));
 app.post('/create-room', express.json(), (req, res) => res.json({ roomId: uuidv4().slice(0, 8) }));
-app.get('/version', (req, res) => res.json({ version: '2026-03-26', specials: THEME_SPECIALS.map(s => s.emoji) }));
+app.get('/version', (req, res) => res.json({ version: SERVER_VERSION, specials: THEME_SPECIALS.map(s => s.emoji) }));
 
 // ================================================================
 // THEME — Cosa Nostra
@@ -88,7 +90,7 @@ function generateGrid(size) {
 
   const nonKeyIndices = [];
   for (let i = 0; i < size * size; i++) if (!keySet.has(i)) nonKeyIndices.push(i);
-  const specialCount = Math.floor(nonKeyIndices.length * 0.22);
+  const specialCount = size <= 6 ? 6 : 8;
   const shuffled = [...nonKeyIndices].sort(() => Math.random() - 0.5);
   const specialSet = new Set(shuffled.slice(0, specialCount));
 
