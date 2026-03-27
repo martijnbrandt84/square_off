@@ -496,7 +496,6 @@ body.game-page {
 #p1card .score-num { color: var(--raccoon2); text-shadow: 0 0 18px rgba(144,144,176,0.60), 0 0 36px rgba(144,144,176,0.28); }
 #p2card .score-num { color: var(--beaver2);  text-shadow: 0 0 18px rgba(200,120,24,0.65),  0 0 36px rgba(200,120,24,0.30); }
 
-.score-bank-icon { font-size: 1rem; opacity: 0.55; }
 .score-divider {
   font-family: var(--font-display); font-size: 0.80rem; letter-spacing: 0.14em;
   color: var(--text3); display: flex; align-items: center; flex-shrink: 0; padding: 0 0.2rem;
@@ -633,7 +632,6 @@ body.game-page {
   .score-name { font-size: 0.70rem; max-width: 75px; }
   .score-pips { font-size: 0.65rem; letter-spacing: 1px; }
   .score-num  { font-size: 1.7rem; }
-  .score-bank-icon { font-size: 0.85rem; }
   .score-divider { padding: 0 0.1rem; font-size: 0.65rem; }
 
   .game-sidebar { display: none; }

@@ -326,20 +326,75 @@ function drawBoard() {
     for (let col = 0; col < size; col++)
       drawCityBlock(grid[row * size + col], OFFSET_X + col * CELL_SIZE, OFFSET_Y + row * CELL_SIZE, CELL_SIZE);
 
-  // Bomb explosion animations — flash + expanding ring on bombed cell
+  // Bomb explosion — multi-phase: flash → shockwave ring → wall sparks → afterglow
   const _bNow = Date.now();
-  bombFlashes = bombFlashes.filter(f => _bNow - f.t < 900);
+  const BOMB_DUR = 1100;
+  bombFlashes = bombFlashes.filter(f => _bNow - f.t < BOMB_DUR);
   for (const f of bombFlashes) {
-    const age  = (_bNow - f.t) / 900;
-    const dx   = OFFSET_X + f.col * CELL_SIZE, dy = OFFSET_Y + f.row * CELL_SIZE;
-    const exp  = age * CELL_SIZE * 0.5;
-    // Inner fill fades from white-orange
-    ctx.fillStyle = `rgba(255,120,20,${((1 - age) * 0.65).toFixed(3)})`;
-    ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
-    // Expanding ring
-    ctx.strokeStyle = `rgba(255,180,40,${((1 - age) * 0.9).toFixed(3)})`;
-    ctx.lineWidth = Math.max(1, 4 * (1 - age));
-    ctx.strokeRect(dx + SI - exp, dy + SI - exp, CELL_SIZE - SI * 2 + exp * 2, CELL_SIZE - SI * 2 + exp * 2);
+    const age = (_bNow - f.t) / BOMB_DUR;   // 0→1 over full duration
+    const cx  = OFFSET_X + f.col * CELL_SIZE + CELL_SIZE / 2;
+    const cy  = OFFSET_Y + f.row * CELL_SIZE + CELL_SIZE / 2;
+    const dx  = OFFSET_X + f.col * CELL_SIZE;
+    const dy  = OFFSET_Y + f.row * CELL_SIZE;
+
+    // 1. Bright core flash (age 0→0.25): peaks at age 0.08, then fades
+    if (age < 0.30) {
+      const flashA = age < 0.08
+        ? age / 0.08
+        : 1 - (age - 0.08) / 0.22;
+      ctx.fillStyle = `rgba(255,240,180,${(flashA * 0.92).toFixed(3)})`;
+      ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
+    }
+
+    // 2. Expanding shockwave ring (age 0.04→0.65)
+    if (age > 0.04 && age < 0.65) {
+      const rAge = (age - 0.04) / 0.61;
+      const rad  = CELL_SIZE * (0.3 + rAge * 1.4);
+      const rA   = (1 - rAge) * 0.85;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,160,30,${rA.toFixed(3)})`;
+      ctx.lineWidth   = Math.max(1, 6 * (1 - rAge));
+      ctx.stroke();
+      // Second ring slightly behind
+      if (rAge > 0.15) {
+        const rad2 = CELL_SIZE * (0.3 + (rAge - 0.15) * 1.4);
+        const rA2  = (1 - rAge) * 0.45;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rad2, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,90,10,${rA2.toFixed(3)})`;
+        ctx.lineWidth   = Math.max(1, 10 * (1 - rAge));
+        ctx.stroke();
+      }
+    }
+
+    // 3. Wall sparks — 4 glowing lines where walls were removed (age 0.08→0.55)
+    if (age > 0.08 && age < 0.55) {
+      const sAge = (age - 0.08) / 0.47;
+      const sA   = (1 - sAge) * 0.9;
+      const sW   = Math.max(1, 7 * (1 - sAge));
+      ctx.strokeStyle = `rgba(255,200,60,${sA.toFixed(3)})`;
+      ctx.lineWidth   = sW;
+      ctx.lineCap     = 'round';
+      ctx.shadowColor = 'rgba(255,160,20,0.8)';
+      ctx.shadowBlur  = 8 * (1 - sAge);
+      // Top wall
+      ctx.beginPath(); ctx.moveTo(dx + SI, dy); ctx.lineTo(dx + CELL_SIZE - SI, dy); ctx.stroke();
+      // Bottom wall
+      ctx.beginPath(); ctx.moveTo(dx + SI, dy + CELL_SIZE); ctx.lineTo(dx + CELL_SIZE - SI, dy + CELL_SIZE); ctx.stroke();
+      // Left wall
+      ctx.beginPath(); ctx.moveTo(dx, dy + SI); ctx.lineTo(dx, dy + CELL_SIZE - SI); ctx.stroke();
+      // Right wall
+      ctx.beginPath(); ctx.moveTo(dx + CELL_SIZE, dy + SI); ctx.lineTo(dx + CELL_SIZE, dy + CELL_SIZE - SI); ctx.stroke();
+      ctx.shadowBlur  = 0;
+    }
+
+    // 4. Afterglow on cell (age 0.25→1.0)
+    if (age > 0.25) {
+      const gAge = (age - 0.25) / 0.75;
+      ctx.fillStyle = `rgba(220,80,10,${((1 - gAge) * 0.40).toFixed(3)})`;
+      ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
+    }
   }
 
   // Bomb mode: highlight hoverable cells (unclaimed only)
