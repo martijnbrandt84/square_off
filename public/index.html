@@ -36,15 +36,15 @@
         <div class="field-group field-half">
           <label class="field-label">Bord</label>
           <div class="choice-row">
-            <button class="choice-btn active" data-size="small">Snel <span>6×6</span></button>
-            <button class="choice-btn" data-size="large">Groot <span>8×8</span></button>
+            <button class="choice-btn active" data-size="small">6×6</button>
+            <button class="choice-btn" data-size="large">8×8</button>
           </div>
         </div>
         <div class="field-group field-half">
           <label class="field-label">Modus</label>
           <div class="choice-row">
-            <button class="choice-btn active" id="modeMulti">👥 Multi</button>
-            <button class="choice-btn" id="modeSingle">🤖 CPU</button>
+            <button class="choice-btn" id="modeMulti">👥 Multi</button>
+            <button class="choice-btn active" id="modeSingle">🤖 CPU</button>
           </div>
         </div>
       </div>
@@ -143,7 +143,7 @@
     document.getElementById('playerName').value = POOL[Math.floor(Math.random() * POOL.length)];
 
     let selectedSize = 'small';
-    let vsComputer   = false;
+    let vsComputer   = true;
 
     function updateJoinVisibility() {
       document.getElementById('joinSection').style.display = vsComputer ? 'none' : 'block';
@@ -322,39 +322,47 @@
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
 
-      // ── City fire glow — flickering, game palette: gold + crimson ──
-      // Flicker: three overlapping sine waves at different speeds → organic fire pulse
+      // ── City fire glow — at screen bottom edge, flickering ──
+      // Three-frequency flicker for organic fire pulse
       const flicker =
-        0.78
-        + 0.10 * Math.sin(t * 0.18)
-        + 0.07 * Math.sin(t * 0.43 + 1.1)
-        + 0.05 * Math.sin(t * 0.97 + 2.3);
+        0.82
+        + 0.10 * Math.sin(t * 0.19)
+        + 0.06 * Math.sin(t * 0.47 + 1.3)
+        + 0.04 * Math.sin(t * 1.10 + 2.7);
+      // Fast micro-flicker on top
+      const micro = 1 + 0.04 * Math.sin(t * 2.8 + 0.5);
 
-      const gy = H * 0.91;
+      // Glow origin sits right at the bottom of the screen
+      const gy = H;
       const glows = [
-        { cx: 0.50, ry: H * 0.16, r: W * 0.85, c: '232,138,10',  a: 0.26 * flicker },
-        { cx: 0.28, ry: H * 0.10, r: W * 0.42, c: '188,21,40',   a: 0.20 * flicker },
-        { cx: 0.72, ry: H * 0.09, r: W * 0.38, c: '224,148,40',  a: 0.18 * flicker },
-        { cx: 0.50, ry: H * 0.06, r: W * 0.28, c: '245,168,32',  a: 0.14 * flicker },
-        { cx: 0.38, ry: H * 0.07, r: W * 0.22, c: '188,21,40',   a: 0.10 * flicker },
+        // Wide warm gold base — spans full width, rises high
+        { cx: 0.50, ry: 0, r: W * 0.95, c: '232,138,10',  a: 0.48 * flicker },
+        // Bright hot centre
+        { cx: 0.50, ry: 0, r: W * 0.38, c: '255,200,60',  a: 0.36 * flicker * micro },
+        // Crimson left lick
+        { cx: 0.22, ry: 0, r: W * 0.40, c: '210,30,15',   a: 0.32 * flicker },
+        // Amber right lick
+        { cx: 0.78, ry: 0, r: W * 0.36, c: '230,130,20',  a: 0.28 * flicker * micro },
+        // Deep crimson undertone
+        { cx: 0.50, ry: 0, r: W * 0.60, c: '160,15,5',    a: 0.22 * flicker },
       ];
       for (const g of glows) {
         const grd = ctx.createRadialGradient(
-          g.cx * W, gy + g.ry, 0,
-          g.cx * W, gy,        g.r
+          g.cx * W, gy, 0,
+          g.cx * W, gy, g.r
         );
         grd.addColorStop(0,    `rgba(${g.c},${g.a.toFixed(3)})`);
-        grd.addColorStop(0.40, `rgba(${g.c},${(g.a * 0.28).toFixed(3)})`);
+        grd.addColorStop(0.45, `rgba(${g.c},${(g.a * 0.30).toFixed(3)})`);
         grd.addColorStop(1,    'rgba(0,0,0,0)');
         ctx.fillStyle = grd;
         ctx.fillRect(0, 0, W, H);
       }
-      // Dark horizon strip
-      const bot = ctx.createLinearGradient(0, H * 0.85, 0, H);
+      // Thin dark strip at very bottom so glow feels like it comes from below the frame
+      const bot = ctx.createLinearGradient(0, H * 0.92, 0, H);
       bot.addColorStop(0, 'rgba(0,0,0,0)');
-      bot.addColorStop(1, 'rgba(3,1,0,0.82)');
+      bot.addColorStop(1, 'rgba(4,1,0,0.70)');
       ctx.fillStyle = bot;
-      ctx.fillRect(0, H * 0.85, W, H * 0.15);
+      ctx.fillRect(0, H * 0.92, W, H * 0.08);
 
       // ── Stars ──
       for (const s of stars) {
