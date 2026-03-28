@@ -543,12 +543,15 @@ function drawBoard() {
           ? `rgba(20,60,255,${(Math.abs(flashCycle) * 0.14 * (1 - age)).toFixed(3)})`
           : `rgba(220,20,20,${(Math.abs(flashCycle) * 0.14 * (1 - age)).toFixed(3)})`;
         ctx.fillRect(0, 0, boardW, size * CELL_SIZE + OFFSET_Y * 2);
-        // 🚓 crossing left→right at claimed cell row
-        const carX = -CELL_SIZE + age * (boardW + CELL_SIZE * 2);
+        // 🚓 crossing right→left at claimed cell row (mirrored)
+        const carX = boardW + CELL_SIZE - age * (boardW + CELL_SIZE * 2);
         ctx.font = `${Math.floor(CELL_SIZE * 0.62)}px serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.globalAlpha = age < 0.06 ? age / 0.06 : age > 0.88 ? (1 - age) / 0.12 : 1;
-        ctx.fillText('🚓', carX, cellCy);
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.fillText('🚓', -carX, cellCy);
+        ctx.restore();
         ctx.globalAlpha = 1;
       }
 
