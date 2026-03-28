@@ -58,6 +58,8 @@ let bombFlashes       = []; // {row, col, t}
 let specialAnimations = []; // {type, t, cellRow, cellCol}
 let lastLine          = null; // {type, row, col, t} — most recent placed line
 let gameOverAnim      = null; // {t, winnerId, winColor, callback}
+let splashAnim        = null; // {t} — game-start cinematic
+let confetti          = [];   // win celebration particles
 
 // ---- SFX (Web Audio API — lazy init, iOS-safe) ----
 const SFX = (() => {
@@ -211,6 +213,8 @@ socket.on('room-update', (updatedRoom) => {
     bombFlashes = [];
     specialAnimations = [];
     lastLine = null;
+    splashAnim = null;
+    confetti = [];
   }
 
   updateUI();
@@ -230,6 +234,15 @@ socket.on('room-update', (updatedRoom) => {
   if (room.status === 'finished' && !gameOverAnim) {
     const winner = room.winner ? room.players.find(p => p.id === room.winner) : null;
     gameOverAnim = { t: Date.now(), winnerId: room.winner, winColor: winner?.color || '#888', callback: showGameOver };
+    if (room.winner === myId) {
+      const boardW = room.size * CELL_SIZE + OFFSET_X * 2;
+      const boardH = room.size * CELL_SIZE + OFFSET_Y * 2;
+      spawnConfetti(boardW, boardH);
+    }
+    startPulse();
+  }
+  if (wasWaiting && room.status === 'playing') {
+    splashAnim = { t: Date.now() };
     startPulse();
   }
 
@@ -265,7 +278,7 @@ function startPulse() {
   function tick() {
     if (room) drawBoard(); // drawBoard cleans stale flashes
     const hasFlashes = claimedFlashes.length > 0 || bombFlashes.length > 0 || specialAnimations.length > 0
-      || gameOverAnim || (lastLine && Date.now() - lastLine.t < 1500);
+      || gameOverAnim || splashAnim || confetti.length > 0 || (lastLine && Date.now() - lastLine.t < 1500);
     if (room?.status === 'playing' || hasFlashes) {
       rafId = requestAnimationFrame(tick);
     } else {
@@ -288,6 +301,7 @@ function updateUI() {
     document.getElementById('p1turn').style.opacity = room.turn === p1.id ? '1' : '0';
     const p1banks = room.grid.filter(c => c.isKeyLocation && c.owner === p1.id).length;
     document.getElementById('p1score').textContent = p1banks;
+    renderBankDots(p1.id, 'p1banks');
   }
   if (p2) {
     document.getElementById('p2name').textContent = p2.name;
@@ -295,6 +309,7 @@ function updateUI() {
     document.getElementById('p2turn').style.opacity = room.turn === p2.id ? '1' : '0';
     const p2banks = room.grid.filter(c => c.isKeyLocation && c.owner === p2.id).length;
     document.getElementById('p2score').textContent = p2banks;
+    renderBankDots(p2.id, 'p2banks');
   }
   const statusEl = document.getElementById('statusBadge');
   if (statusEl) {
@@ -304,6 +319,15 @@ function updateUI() {
   }
 
   document.getElementById('powerDisplay').style.display = 'none';
+}
+
+function renderBankDots(playerId, elementId) {
+  const el = document.getElementById(elementId);
+  if (!el || !room) return;
+  const count = room.grid.filter(c => c.isKeyLocation && c.owner === playerId).length;
+  el.innerHTML = Array.from({ length: 5 }, (_, i) =>
+    `<span class="bank-dot${i < count ? ' claimed' : ''}"></span>`
+  ).join('');
 }
 
 function renderLocationBar(playerId, elementId) {
@@ -622,6 +646,7 @@ function drawBoard() {
   // Bank & special emojis — drawn last so lines never cover them
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.globalAlpha = 1;
+  const _emojiNow = Date.now();
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
       const cell = grid[row * size + col];
@@ -629,7 +654,16 @@ function drawBoard() {
       const cy = OFFSET_Y + row * CELL_SIZE + CELL_SIZE / 2;
       if (cell.isKeyLocation) {
         ctx.font = `${Math.floor(CELL_SIZE * 0.55)}px serif`;
+        if (!cell.owner) {
+          // Pulsing gold glow on unclaimed banks
+          const bp = 0.5 + 0.5 * Math.sin(_emojiNow / 820 + col * 0.8 + row * 0.6);
+          ctx.shadowColor = '#e88a0a';
+          ctx.shadowBlur  = 8 + bp * 22;
+          ctx.globalAlpha = 0.78 + bp * 0.22;
+        }
         ctx.fillText('🏦', cx, cy);
+        ctx.shadowBlur  = 0;
+        ctx.globalAlpha = 1;
       } else if (cell.special && !cell.owner && SPECIALS_INFO[cell.special.id]) {
         ctx.font = `${Math.floor(CELL_SIZE * 0.44)}px serif`;
         ctx.fillText(SPECIALS_INFO[cell.special.id].emoji, cx, cy);
@@ -676,6 +710,56 @@ function drawBoard() {
         ctx.fillStyle = `rgba(0,0,0,${(curtain * 0.92).toFixed(3)})`;
         ctx.fillRect(0, 0, boardW, boardH);
       }
+      ctx.restore();
+    }
+  }
+
+  // Confetti — win celebration particles drawn on top of everything
+  const _cNow = Date.now();
+  confetti = confetti.filter(p => _cNow - p.t < p.dur);
+  if (confetti.length > 0) {
+    ctx.save();
+    for (const p of confetti) {
+      const dt  = (_cNow - p.t) / 1000;
+      const age = dt / (p.dur / 1000);
+      const x   = p.x0 + p.vx * dt;
+      const y   = p.y0 + p.vy * dt + 0.5 * 480 * dt * dt;
+      const rot = p.rot0 + p.rotV * dt;
+      ctx.globalAlpha = age < 0.65 ? 1 : 1 - (age - 0.65) / 0.35;
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // Game-start splash — "THE CITY IS OPEN"
+  if (splashAnim) {
+    const SPLASH_DUR = 2800;
+    const sAge = (Date.now() - splashAnim.t) / SPLASH_DUR;
+    if (sAge >= 1) {
+      splashAnim = null;
+    } else {
+      const alpha  = sAge < 0.12 ? sAge / 0.12 : sAge > 0.72 ? 1 - (sAge - 0.72) / 0.28 : 1;
+      const boardW = size * CELL_SIZE + OFFSET_X * 2;
+      const boardH = size * CELL_SIZE + OFFSET_Y * 2;
+      ctx.save();
+      ctx.fillStyle = `rgba(0,0,0,${(alpha * 0.76).toFixed(3)})`;
+      ctx.fillRect(0, 0, boardW, boardH);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const bx = boardW / 2, by = boardH / 2;
+      ctx.font        = `${Math.floor(CELL_SIZE * 0.92)}px 'Bebas Neue', sans-serif`;
+      ctx.fillStyle   = `rgba(232,138,10,${alpha.toFixed(3)})`;
+      ctx.shadowColor = 'rgba(232,138,10,0.65)';
+      ctx.shadowBlur  = 22 * alpha;
+      ctx.fillText('THE CITY IS OPEN', bx, by - CELL_SIZE * 0.30);
+      ctx.font        = `${Math.floor(CELL_SIZE * 0.35)}px 'Bebas Neue', sans-serif`;
+      ctx.fillStyle   = `rgba(238,234,220,${(alpha * 0.72).toFixed(3)})`;
+      ctx.shadowBlur  = 0;
+      ctx.fillText('MAKE YOUR MOVE', bx, by + CELL_SIZE * 0.50);
       ctx.restore();
     }
   }
@@ -733,21 +817,35 @@ function drawCityBlock(cell, x, y, cs) {
 function drawLine(type, row, col, color, ghost) {
   const x1 = OFFSET_X + col * CELL_SIZE;
   const y1 = OFFSET_Y + row * CELL_SIZE;
+  const x2 = type === 'h' ? x1 + CELL_SIZE : x1;
+  const y2 = type === 'h' ? y1 : y1 + CELL_SIZE;
+  ctx.lineCap = 'round';
 
-  // Ghost (hover) = same thickness as placed, just lower opacity
-  ctx.strokeStyle = ghost ? hexToRgba(color, 0.5) : color;
-  ctx.lineWidth   = 6;
-  ctx.lineCap     = 'square';
-  ctx.shadowColor = ghost ? 'transparent' : color;
-  ctx.shadowBlur  = ghost ? 0 : 12;
-
-  ctx.beginPath();
-  if (type === 'h') {
-    ctx.moveTo(x1, y1); ctx.lineTo(x1 + CELL_SIZE, y1);
-  } else {
-    ctx.moveTo(x1, y1); ctx.lineTo(x1, y1 + CELL_SIZE);
+  if (ghost) {
+    ctx.strokeStyle = hexToRgba(color, 0.42);
+    ctx.lineWidth   = 6;
+    ctx.shadowBlur  = 0;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    return;
   }
-  ctx.stroke();
+
+  // Spray paint: wide diffuse halo → soft body → crisp center
+  ctx.strokeStyle = hexToRgba(color, 0.13);
+  ctx.lineWidth   = 22;
+  ctx.shadowBlur  = 0;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+  ctx.strokeStyle = hexToRgba(color, 0.48);
+  ctx.lineWidth   = 8;
+  ctx.shadowColor = color;
+  ctx.shadowBlur  = 14;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+  ctx.strokeStyle = hexToRgba(color, 0.95);
+  ctx.lineWidth   = 2.5;
+  ctx.shadowBlur  = 5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
   ctx.shadowBlur = 0;
 }
 
@@ -909,6 +1007,29 @@ function getCellAt(mx, my) {
 
 function getMyColor() {
   return room?.players.find(p => p.id === myId)?.color || '#c0392b';
+}
+
+// ---- Confetti ----
+function spawnConfetti(boardW, boardH) {
+  const cx = boardW / 2;
+  const cy = boardH * 0.3;
+  const colors = ['#e8a020','#f5a820','#f8c848','#c0392b','#2475a8','#ffffff','#e8e8a0'];
+  for (let i = 0; i < 90; i++) {
+    const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * Math.PI * 1.6;
+    const speed = 120 + Math.random() * 320;
+    confetti.push({
+      x0: cx + (Math.random() - 0.5) * CELL_SIZE * 2,
+      y0: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      w: 5 + Math.random() * 8, h: 3 + Math.random() * 5,
+      rot0: Math.random() * Math.PI * 2,
+      rotV: (Math.random() - 0.5) * 7,
+      t: Date.now(),
+      dur: 1800 + Math.random() * 1400,
+    });
+  }
 }
 
 // ---- Game Over ----

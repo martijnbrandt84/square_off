@@ -59,6 +59,24 @@ html, body {
 }
 #splash.splash-hidden { opacity: 0; pointer-events: none; }
 
+/* ---- Game page atmospheric background ---- */
+.game-page #bgCanvas {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+}
+.game-page .game-layout {
+  position: relative; z-index: 1;
+}
+.game-page .board-area { background: transparent; }
+.game-page .game-body  { background: transparent; }
+.game-page .game-topbar {
+  background: rgba(9,12,35,0.88);
+  backdrop-filter: blur(12px);
+}
+.game-page .game-sidebar {
+  background: rgba(9,12,35,0.82);
+  backdrop-filter: blur(8px);
+}
+
 .splash-img {
   width: clamp(280px, 82vw, 500px);
   height: auto;
@@ -486,19 +504,41 @@ body.game-page {
 /* .score-pips removed */
 
 .score-count {
-  display: flex; align-items: center; gap: 0.15rem; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 0; flex-shrink: 0;
 }
 .score-num {
   font-family: var(--font-display);
-  font-size: 2.4rem; line-height: 1; letter-spacing: 0.02em;
+  font-size: 3rem; line-height: 1; letter-spacing: 0.02em;
   min-width: 1.2ch; text-align: center;
 }
-#p1card .score-num { color: var(--raccoon2); text-shadow: 0 0 18px rgba(144,144,176,0.60), 0 0 36px rgba(144,144,176,0.28); }
-#p2card .score-num { color: var(--beaver2);  text-shadow: 0 0 18px rgba(200,120,24,0.65),  0 0 36px rgba(200,120,24,0.30); }
+#p1card .score-num { color: var(--raccoon2); text-shadow: 0 0 20px rgba(144,144,176,0.80), 0 0 40px rgba(144,144,176,0.35); }
+#p2card .score-num { color: var(--beaver2);  text-shadow: 0 0 20px rgba(200,120,24,0.85),  0 0 40px rgba(200,120,24,0.40); }
+.score-label {
+  font-family: var(--font-display); font-size: 0.52rem; letter-spacing: 0.12em;
+  color: var(--text3); line-height: 1; text-transform: uppercase;
+}
+
+/* Bank dots in scorecard */
+.score-banks { display: flex; gap: 5px; margin-top: 4px; }
+.bank-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1px solid rgba(232,138,10,0.35);
+  background: transparent;
+  transition: background 0.35s, box-shadow 0.35s;
+  flex-shrink: 0;
+}
+.bank-dot.claimed {
+  background: var(--gold);
+  border-color: var(--gold2);
+  box-shadow: 0 0 7px var(--gold), 0 0 14px rgba(232,138,10,0.45);
+}
 
 .score-divider {
-  font-family: var(--font-display); font-size: 0.80rem; letter-spacing: 0.14em;
-  color: var(--text3); display: flex; align-items: center; flex-shrink: 0; padding: 0 0.2rem;
+  font-family: var(--font-display); font-size: 1.05rem; letter-spacing: 0.14em;
+  display: flex; align-items: center; flex-shrink: 0; padding: 0 0.2rem;
+  background: linear-gradient(to bottom, var(--gold3), var(--gold), #a05010);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
 }
 
 /* ---- Game body ---- */
@@ -636,7 +676,9 @@ body.game-page {
   .score-card { padding: 0 0.42rem; gap: 0.3rem; border-radius: 3px; }
   .score-avatar-img { width: auto; height: 100%; }
   .score-name { font-size: 0.70rem; max-width: 75px; }
-  .score-num  { font-size: 1.7rem; }
+  .score-num  { font-size: 2rem; }
+  .score-banks { gap: 3px; }
+  .bank-dot   { width: 7px; height: 7px; }
   .score-divider { padding: 0 0.1rem; font-size: 0.65rem; }
 
   .game-sidebar { display: none; }
