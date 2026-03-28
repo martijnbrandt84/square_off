@@ -480,7 +480,7 @@ io.on('connection', (socket) => {
     if (room.players.length >= 2) { socket.emit('room-full'); return; }
     if (room.players.find(p => p.id === socket.id)) return;
 
-    const colors = ['#c0392b', '#2475a8'];
+    const colors = ['#ff2244', '#00aaff'];
     const player = { id: socket.id, playerId: playerId || null, name: playerName || 'Don', color: colors[room.players.length], num: room.players.length + 1 };
     room.players.push(player);
     room.scores[socket.id] = 0;
@@ -539,7 +539,7 @@ io.on('connection', (socket) => {
       newRoom.players = humans.map(p => ({ ...p }));
       newRoom.players.forEach(p => { newRoom.scores[p.id] = 0; });
       if (room.vsComputer) {
-        newRoom.players.push({ id: 'BOT', name: 'Don Kraken', color: '#2475a8', num: 2, isBot: true });
+        newRoom.players.push({ id: 'BOT', name: 'Don Kraken', color: '#00aaff', num: 2, isBot: true });
         newRoom.scores['BOT'] = 0;
         newRoom.turn = humans[0]?.id || null;
       } else {

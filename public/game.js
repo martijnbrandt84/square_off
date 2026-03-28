@@ -829,15 +829,15 @@ function drawLine(type, row, col, color, ghost) {
     return;
   }
 
-  // Neon: outer glow + bright core
+  // Neon: wide glow + thick solid line in player color
   ctx.shadowColor = color;
-  ctx.shadowBlur  = 18;
+  ctx.shadowBlur  = 20;
   ctx.strokeStyle = color;
-  ctx.lineWidth   = 3;
+  ctx.lineWidth   = 6;
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-  ctx.shadowBlur  = 6;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth   = 1.5;
+  // second pass sharpens the core
+  ctx.shadowBlur  = 8;
+  ctx.lineWidth   = 4;
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
   ctx.shadowBlur  = 0;
 }
