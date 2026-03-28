@@ -829,20 +829,11 @@ function drawLine(type, row, col, color, ghost) {
     return;
   }
 
-  // Soft glow halo
-  ctx.strokeStyle = hexToRgba(color, 0.30);
-  ctx.lineWidth   = 10;
-  ctx.shadowColor = color;
-  ctx.shadowBlur  = 12;
+  // Solid, bright line — no glow
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 5;
+  ctx.shadowBlur  = 0;
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-
-  // Crisp solid center
-  ctx.strokeStyle = hexToRgba(color, 0.95);
-  ctx.lineWidth   = 4;
-  ctx.shadowBlur  = 4;
-  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-
-  ctx.shadowBlur = 0;
 }
 
 // ---- Canvas interaction ----
