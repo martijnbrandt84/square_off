@@ -6,7 +6,7 @@ const path = require('path');
 
 process.on('uncaughtException',  (err) => console.error('Error:', err));
 process.on('unhandledRejection', (err) => console.error('Promise error:', err));
-const SERVER_VERSION = '2026-03-28-v3';
+const SERVER_VERSION = '2026-03-28-v4';
 console.log(`[Square Off] server starting — version ${SERVER_VERSION}`);
 
 const app = express();
@@ -265,29 +265,7 @@ function computeBotMove(room) {
       }
     }
   }
-  // 3. Claim any cell — prefer bribe/bomb (+6), never voluntarily take hitman
-  const isHitmanOnly = m => {
-    const cells = cellsCompletedByMove(lines, grid, size, m);
-    return cells.length > 0 && cells.every(({ row, col }) => grid[row * size + col].special?.id === 'hitman');
-  };
-  const scoringMoves = moves.filter(m => cellsCompletedByMove(lines, grid, size, m).length > 0);
-  const goodScoring  = scoringMoves.filter(m => !isHitmanOnly(m));
-  if (goodScoring.length > 0) {
-    goodScoring.sort((a, b) => {
-      const spScore = (move) => {
-        const cells = cellsCompletedByMove(lines, grid, size, move);
-        let s = 0;
-        for (const { row, col } of cells) {
-          const sp = grid[row * size + col].special?.id;
-          if (sp === 'bribe' || sp === 'bomb') s += 6;
-        }
-        return s;
-      };
-      return spScore(b) - spScore(a);
-    });
-    return goodScoring[0];
-  }
-  // Helper: does this move make an unowned bank 3-sided (giving opponent easy score)?
+  // Helper: does this move make an unowned bank 3-sided?
   const givesOpponentBank = m => {
     const nl = applyLineToLines(lines, m);
     return getAdjacentCells(m, size).some(({ row, col }) => {
@@ -295,23 +273,31 @@ function computeBotMove(room) {
       return cell && !cell.owner && cell.isKeyLocation && getCellSides(nl, size, row, col) === 3;
     });
   };
+  const isHitmanCell = ({ row, col }) => grid[row * size + col].special?.id === 'hitman';
 
-  // 4. Safe moves (no 3-sided threats on any cell, no bank handed to opponent)
-  const safe = moves.filter(m => {
-    if (threatsCreatedByMove(lines, grid, size, m) > 0) return false;
-    return !givesOpponentBank(m);
-  });
-  if (safe.length > 0) return safe[Math.floor(Math.random() * safe.length)];
+  // 3. Claim any cell — prefer bribe/bomb, avoid hitman; but prefer hitman over giving opponent a bank
+  const scoringMoves = moves.filter(m => cellsCompletedByMove(lines, grid, size, m).length > 0);
+  const nonHitmanScoring = scoringMoves.filter(m => !cellsCompletedByMove(lines, grid, size, m).every(isHitmanCell));
+  const hitmanScoring    = scoringMoves.filter(m =>  cellsCompletedByMove(lines, grid, size, m).every(isHitmanCell));
 
-  // 5. No safe move: taking hitman (skip own turn) beats handing opponent a bank
-  const hitmanMoves = scoringMoves.filter(isHitmanOnly);
-  const hitmanNoBankRisk = hitmanMoves.filter(m => !givesOpponentBank(m));
-  if (hitmanNoBankRisk.length > 0) return hitmanNoBankRisk[0];
+  if (nonHitmanScoring.length > 0) {
+    nonHitmanScoring.sort((a, b) => {
+      const sp = m => { let s = 0; for (const c of cellsCompletedByMove(lines, grid, size, m)) { const id = grid[c.row * size + c.col].special?.id; if (id === 'bribe' || id === 'bomb') s += 6; } return s; };
+      return sp(b) - sp(a);
+    });
+    return nonHitmanScoring[0];
+  }
 
-  // 6. Last resort: avoid giving opponent a bank if at all possible
-  const noBankRisk = moves.filter(m => !givesOpponentBank(m));
-  const pool = noBankRisk.length > 0 ? noBankRisk : moves;
-  return pool[Math.floor(Math.random() * pool.length)];
+  // 4. Safe moves (no threats, no bank handed to opponent)
+  const safe = moves.filter(m => threatsCreatedByMove(lines, grid, size, m) === 0 && !givesOpponentBank(m));
+
+  // 5. If hitman is available and doesn't give opponent a bank, prefer it over dangerous moves
+  const hitmanSafe = hitmanScoring.filter(m => !givesOpponentBank(m));
+  if (hitmanSafe.length > 0 && safe.length === 0) return hitmanSafe[0];
+
+  // 6. Safe non-scoring move, or least-bad fallback
+  const pool = safe.length > 0 ? safe : moves.filter(m => !givesOpponentBank(m));
+  return pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : moves[Math.floor(Math.random() * moves.length)];
 }
 
 function computeBotBombTarget(room) {
