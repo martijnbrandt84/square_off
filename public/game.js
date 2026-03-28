@@ -822,28 +822,24 @@ function drawLine(type, row, col, color, ghost) {
   ctx.lineCap = 'round';
 
   if (ghost) {
-    ctx.strokeStyle = hexToRgba(color, 0.42);
-    ctx.lineWidth   = 6;
+    ctx.strokeStyle = hexToRgba(color, 0.38);
+    ctx.lineWidth   = 5;
     ctx.shadowBlur  = 0;
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     return;
   }
 
-  // Spray paint: wide diffuse halo → soft body → crisp center
-  ctx.strokeStyle = hexToRgba(color, 0.13);
-  ctx.lineWidth   = 22;
-  ctx.shadowBlur  = 0;
-  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-
-  ctx.strokeStyle = hexToRgba(color, 0.48);
-  ctx.lineWidth   = 8;
+  // Soft glow halo
+  ctx.strokeStyle = hexToRgba(color, 0.30);
+  ctx.lineWidth   = 10;
   ctx.shadowColor = color;
-  ctx.shadowBlur  = 14;
+  ctx.shadowBlur  = 12;
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
 
+  // Crisp solid center
   ctx.strokeStyle = hexToRgba(color, 0.95);
-  ctx.lineWidth   = 2.5;
-  ctx.shadowBlur  = 5;
+  ctx.lineWidth   = 4;
+  ctx.shadowBlur  = 4;
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
 
   ctx.shadowBlur = 0;
@@ -921,6 +917,9 @@ canvas.addEventListener('touchend', (e) => {
   if (line.type === 'v' && vLines[line.row]?.[line.col]) { if (!rafId) drawBoard(); return; }
   if (!socket.connected) return;
   SFX.placeLine();
+  // Optimistic: render immediately, server will confirm via room-update
+  if (line.type === 'h') room.lines.hLines[line.row][line.col] = myId;
+  else                   room.lines.vLines[line.row][line.col] = myId;
   socket.emit('place-line', { roomId, lineType: line.type, row: line.row, col: line.col });
   if (!rafId) drawBoard();
 }, { passive: false });
@@ -965,7 +964,11 @@ function handleBoardClick(e) {
   if (line.type === 'v' && vLines[line.row]?.[line.col]) return;
   if (!socket.connected) return;
   SFX.placeLine();
+  // Optimistic: render immediately, server will confirm via room-update
+  if (line.type === 'h') room.lines.hLines[line.row][line.col] = myId;
+  else                   room.lines.vLines[line.row][line.col] = myId;
   socket.emit('place-line', { roomId, lineType: line.type, row: line.row, col: line.col });
+  if (!rafId) drawBoard();
 }
 
 document.addEventListener('mousedown', (e) => {
