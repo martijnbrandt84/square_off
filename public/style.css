@@ -657,5 +657,6 @@ body.game-page {
 /* ---- QR modal ---- */
 .qr-modal { max-width: 260px; }
 .qr-modal h2 { margin-bottom: 0; }
-.qr-modal canvas { display: block; margin: 1rem auto; border-radius: 4px; }
+#qrContainer { display: flex; justify-content: center; margin: 1rem auto; }
+#qrContainer img, #qrContainer canvas { border-radius: 4px; }
 .qr-url { font-size: 0.60rem; color: var(--text3); word-break: break-all; text-align: center; margin-top: 0.2rem; }

@@ -887,10 +887,10 @@ if (_qrBtn) {
     const url = window.location.origin + `/room/${roomId}`;
     document.getElementById('qrUrl').textContent = url;
     document.getElementById('qrModal').style.display = 'flex';
+    const container = document.getElementById('qrContainer');
+    container.innerHTML = '';
     if (typeof QRCode !== 'undefined') {
-      QRCode.toCanvas(document.getElementById('qrCanvas'), url,
-        { width: 180, color: { dark: '#e8a020', light: '#0e1128' } }
-      ).catch(() => {});
+      new QRCode(container, { text: url, width: 180, height: 180, colorDark: '#e8a020', colorLight: '#0e1128' });
     }
   });
 }

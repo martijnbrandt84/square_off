@@ -135,7 +135,7 @@
     <div class="modal qr-modal">
       <button class="modal-close" onclick="document.getElementById('qrModal').style.display='none'">✕</button>
       <h2>Uitnodigen</h2>
-      <canvas id="qrCanvas"></canvas>
+      <div id="qrContainer"></div>
       <p class="qr-url" id="qrUrl"></p>
     </div>
   </div>
@@ -143,7 +143,7 @@
   <div class="special-reveal" id="specialReveal"></div>
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script src="/game.js"></script>
   <script>
