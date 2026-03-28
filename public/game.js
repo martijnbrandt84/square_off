@@ -864,7 +864,21 @@ document.getElementById('rematchBtn').addEventListener('click', () => {
   document.getElementById('rematchStatus').textContent = 'Wachten op tegenstander...';
 });
 
-document.getElementById('copyLink').addEventListener('click', () => {
+// Share + QR — één knop, één modal
+function openShareModal() {
+  const url = window.location.origin + `/room/${roomId}`;
+  document.getElementById('qrUrl').textContent = url;
+  document.getElementById('qrModal').style.display = 'flex';
+  const container = document.getElementById('qrContainer');
+  container.innerHTML = '';
+  if (typeof QRCode !== 'undefined') {
+    new QRCode(container, { text: url, width: 180, height: 180, colorDark: '#e8a020', colorLight: '#0e1128' });
+  }
+}
+
+document.getElementById('shareBtn').addEventListener('click', openShareModal);
+
+document.getElementById('qrShareBtn').addEventListener('click', () => {
   const url = window.location.origin + `/room/${roomId}`;
   if (navigator.share) {
     navigator.share({ title: 'Square Off', text: 'Speel Square Off met mij!', url }).catch(() => {});
@@ -879,21 +893,6 @@ if (_muteBtn) {
   _muteBtn.textContent = localStorage.getItem('squareoff_muted') === '1' ? '🔇' : '🔊';
   _muteBtn.addEventListener('click', () => {
     _muteBtn.textContent = SFX.toggle() ? '🔇' : '🔊';
-  });
-}
-
-// QR button
-const _qrBtn = document.getElementById('qrBtn');
-if (_qrBtn) {
-  _qrBtn.addEventListener('click', () => {
-    const url = window.location.origin + `/room/${roomId}`;
-    document.getElementById('qrUrl').textContent = url;
-    document.getElementById('qrModal').style.display = 'flex';
-    const container = document.getElementById('qrContainer');
-    container.innerHTML = '';
-    if (typeof QRCode !== 'undefined') {
-      new QRCode(container, { text: url, width: 180, height: 180, colorDark: '#e8a020', colorLight: '#0e1128' });
-    }
   });
 }
 

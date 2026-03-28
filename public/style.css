@@ -659,3 +659,4 @@ body.game-page {
 #qrContainer { display: flex; justify-content: center; margin: 1rem auto; }
 #qrContainer img, #qrContainer canvas { border-radius: 4px; }
 .qr-url { font-size: 0.60rem; color: var(--text3); word-break: break-all; text-align: center; margin-top: 0.2rem; }
+.qr-share-btn { margin-top: 1rem; width: 100%; }
