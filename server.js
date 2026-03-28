@@ -6,7 +6,7 @@ const path = require('path');
 
 process.on('uncaughtException',  (err) => console.error('Error:', err));
 process.on('unhandledRejection', (err) => console.error('Promise error:', err));
-const SERVER_VERSION = '2026-03-28-v4';
+const SERVER_VERSION = '2026-03-28-v5';
 console.log(`[Square Off] server starting — version ${SERVER_VERSION}`);
 
 const app = express();
@@ -273,12 +273,12 @@ function computeBotMove(room) {
       return cell && !cell.owner && cell.isKeyLocation && getCellSides(nl, size, row, col) === 3;
     });
   };
-  const isHitmanCell = ({ row, col }) => grid[row * size + col].special?.id === 'hitman';
+  const closesHitman = m => cellsCompletedByMove(lines, grid, size, m).some(({ row, col }) => grid[row * size + col].special?.id === 'hitman');
 
   // 3. Claim any cell — prefer bribe/bomb, avoid hitman; but prefer hitman over giving opponent a bank
-  const scoringMoves = moves.filter(m => cellsCompletedByMove(lines, grid, size, m).length > 0);
-  const nonHitmanScoring = scoringMoves.filter(m => !cellsCompletedByMove(lines, grid, size, m).every(isHitmanCell));
-  const hitmanScoring    = scoringMoves.filter(m =>  cellsCompletedByMove(lines, grid, size, m).every(isHitmanCell));
+  const scoringMoves     = moves.filter(m => cellsCompletedByMove(lines, grid, size, m).length > 0);
+  const nonHitmanScoring = scoringMoves.filter(m => !closesHitman(m));
+  const hitmanScoring    = scoringMoves.filter(m =>  closesHitman(m));
 
   if (nonHitmanScoring.length > 0) {
     nonHitmanScoring.sort((a, b) => {
