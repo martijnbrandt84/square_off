@@ -53,18 +53,21 @@ let hoveredLine        = null;
 let hoveredBombCell    = null;
 let rafId          = null;
 let lastTouchLine  = null;
-let claimedFlashes = []; // {idx, color, t}
-let bombFlashes    = []; // {row, col, t}
+let claimedFlashes    = []; // {idx, color, t}
+let bombFlashes       = []; // {row, col, t}
+let specialAnimations = []; // {type, t, cellRow, cellCol}
 
 // ---- SFX (Web Audio API — lazy init, iOS-safe) ----
 const SFX = (() => {
   let _ctx = null;
+  let muted = localStorage.getItem('squareoff_muted') === '1';
   function ctx() {
     if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (_ctx.state === 'suspended') _ctx.resume();
     return _ctx;
   }
   function beep(freq, type, dur, vol, delay = 0) {
+    if (muted) return;
     try {
       const c = ctx(), o = c.createOscillator(), g = c.createGain();
       o.connect(g); g.connect(c.destination);
@@ -77,6 +80,7 @@ const SFX = (() => {
     } catch(e) {}
   }
   function sweep(f0, f1, type, dur, vol) {
+    if (muted) return;
     try {
       const c = ctx(), o = c.createOscillator(), g = c.createGain();
       o.connect(g); g.connect(c.destination);
@@ -90,11 +94,14 @@ const SFX = (() => {
     } catch(e) {}
   }
   return {
+    toggle() { muted = !muted; localStorage.setItem('squareoff_muted', muted ? '1' : '0'); return muted; },
     placeLine() { beep(700, 'sine', 0.07, 0.10); },
     oppLine()   { beep(280, 'sine', 0.08, 0.07); },
     claimCell() { beep(320, 'sine', 0.18, 0.28); beep(200, 'sine', 0.14, 0.18, 0.06); },
     claimBank() { [440, 554, 659, 880].forEach((f, i) => beep(f, 'sine', 0.35, 0.28, i * 0.09)); },
     special()   { sweep(200, 900, 'sawtooth', 0.30, 0.16); beep(900, 'sine', 0.18, 0.14, 0.25); },
+    razzia()    { sweep(950, 500, 'sawtooth', 0.30, 0.11); setTimeout(() => sweep(950, 500, 'sawtooth', 0.30, 0.11), 330); setTimeout(() => sweep(950, 500, 'sawtooth', 0.28, 0.09), 660); },
+    steekpenning() { [2100, 2600, 3100, 3700].forEach((f, i) => setTimeout(() => beep(f, 'sine', 0.12, 0.18), i * 55)); },
     win()       { [523, 659, 784, 1047].forEach((f, i) => beep(f, 'sine', 0.4, 0.30, i * 0.10)); },
     lose()      { [392, 349, 311, 262].forEach((f, i) => beep(f, 'sine', 0.38, 0.22, i * 0.12)); },
   };
@@ -114,6 +121,19 @@ function getPlayerId() {
   return id;
 }
 const playerId = getPlayerId();
+
+// ---- Stats ----
+function loadStats() {
+  try { return JSON.parse(localStorage.getItem('squareoff_stats')) || { wins: 0, losses: 0, streak: 0 }; }
+  catch { return { wins: 0, losses: 0, streak: 0 }; }
+}
+function saveStats(s) { localStorage.setItem('squareoff_stats', JSON.stringify(s)); }
+function recordResult(won) {
+  const s = loadStats();
+  if (won) { s.wins++; s.streak = s.streak > 0 ? s.streak + 1 : 1; }
+  else     { s.losses++; s.streak = s.streak < 0 ? s.streak - 1 : -1; }
+  saveStats(s); return s;
+}
 
 // ---- Join room ----
 socket.on('connect', () => {
@@ -152,7 +172,14 @@ socket.on('room-update', (updatedRoom) => {
         if (cur.isKeyLocation) anyBank = true; else anyCell = true;
         if (cur.special && !specialShown) {
           showSpecialReveal(cur.special, cur.owner === myId);
-          setTimeout(() => SFX.special(), 300);
+          const spId = cur.special.id;
+          const animType = spId === 'hitman' ? 'razzia' : spId === 'bribe' ? 'steekpenning' : null;
+          if (animType) specialAnimations.push({ type: animType, t: Date.now(), cellRow: cur.row, cellCol: cur.col });
+          setTimeout(() => {
+            if (spId === 'hitman') SFX.razzia();
+            else if (spId === 'bribe') SFX.steekpenning();
+            else SFX.special();
+          }, 300);
           specialShown = true;
         }
       }
@@ -199,7 +226,7 @@ socket.on('room-update', (updatedRoom) => {
     setHint('', '');
   }
 
-  if (room.status === 'playing' || claimedFlashes.length > 0 || bombFlashes.length > 0) startPulse();
+  if (room.status === 'playing' || claimedFlashes.length > 0 || bombFlashes.length > 0 || specialAnimations.length > 0) startPulse();
   else stopPulse();
 });
 
@@ -214,7 +241,7 @@ function startPulse() {
   if (rafId) return;
   function tick() {
     if (room) drawBoard(); // drawBoard cleans stale flashes
-    const hasFlashes = claimedFlashes.length > 0 || bombFlashes.length > 0;
+    const hasFlashes = claimedFlashes.length > 0 || bombFlashes.length > 0 || specialAnimations.length > 0;
     if (room?.status === 'playing' || hasFlashes) {
       rafId = requestAnimationFrame(tick);
     } else {
@@ -497,6 +524,53 @@ function drawBoard() {
   }
   ctx.restore();
 
+  // Special animations — razzia police car + steekpenning money rain
+  const _spNow = Date.now();
+  const SP_DUR = 2200;
+  specialAnimations = specialAnimations.filter(a => _spNow - a.t < SP_DUR);
+  if (specialAnimations.length > 0) {
+    ctx.save();
+    for (const anim of specialAnimations) {
+      const age = (_spNow - anim.t) / SP_DUR;
+      const boardW = size * CELL_SIZE + OFFSET_X * 2;
+      const cellCy = OFFSET_Y + anim.cellRow * CELL_SIZE + CELL_SIZE / 2;
+      const cellCx = OFFSET_X + anim.cellCol * CELL_SIZE + CELL_SIZE / 2;
+
+      if (anim.type === 'razzia') {
+        // Flashing blue/red overlay on board
+        const flashCycle = Math.sin(age * Math.PI * 16);
+        ctx.fillStyle = flashCycle > 0
+          ? `rgba(20,60,255,${(Math.abs(flashCycle) * 0.14 * (1 - age)).toFixed(3)})`
+          : `rgba(220,20,20,${(Math.abs(flashCycle) * 0.14 * (1 - age)).toFixed(3)})`;
+        ctx.fillRect(0, 0, boardW, size * CELL_SIZE + OFFSET_Y * 2);
+        // 🚓 crossing left→right at claimed cell row
+        const carX = -CELL_SIZE + age * (boardW + CELL_SIZE * 2);
+        ctx.font = `${Math.floor(CELL_SIZE * 0.62)}px serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.globalAlpha = age < 0.06 ? age / 0.06 : age > 0.88 ? (1 - age) / 0.12 : 1;
+        ctx.fillText('🚓', carX, cellCy);
+        ctx.globalAlpha = 1;
+      }
+
+      if (anim.type === 'steekpenning') {
+        // 6 × 💸 bills falling from top to claimed cell
+        ctx.font = `${Math.floor(CELL_SIZE * 0.44)}px serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        for (let i = 0; i < 6; i++) {
+          const delay = i * 0.08;
+          const billAge = Math.max(0, age - delay) / (1 - delay);
+          if (billAge <= 0) continue;
+          const billY = -CELL_SIZE * 0.5 + billAge * (cellCy + CELL_SIZE * 0.5);
+          const billX = cellCx + Math.sin(billAge * Math.PI * 3 + i * 1.1) * CELL_SIZE * 0.38;
+          ctx.globalAlpha = billAge < 0.80 ? 1 : Math.max(0, (1 - billAge) / 0.20);
+          ctx.fillText('💸', billX, billY);
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+    ctx.restore();
+  }
+
   // Bank & special emojis — drawn last so lines never cover them
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.globalAlpha = 1;
@@ -754,6 +828,7 @@ function getMyColor() {
 }
 
 // ---- Game Over ----
+let _lastRecordedTurnCount = -1;
 function showGameOver() {
   if (!room) return;
   document.getElementById('gameOverModal').style.display = 'flex';
@@ -765,9 +840,17 @@ function showGameOver() {
   document.getElementById('modalTitle').textContent = winner ? `${winner.name} heerst de stad!` : 'Gelijkspel.';
   const p1 = room.players[0], p2 = room.players[1];
   const loc = (id) => room.grid.filter(c => c.isKeyLocation && c.owner === id).length;
+  let statsHtml = '';
+  if (winner && room.turnCount !== _lastRecordedTurnCount) {
+    _lastRecordedTurnCount = room.turnCount;
+    const s = recordResult(winner.id === myId);
+    const streak = Math.abs(s.streak) > 1 ? ` &nbsp;${s.streak > 0 ? '🔥' : '💀'}${Math.abs(s.streak)}` : '';
+    statsHtml = `<div class="stats-row">${s.wins}w&nbsp;/&nbsp;${s.losses}v${streak}</div>`;
+  }
   document.getElementById('modalScores').innerHTML = `
     <div class="score-row" style="color:${p1?.color}">${p1?.name}: ${loc(p1?.id)} / 5 banken</div>
     ${p2 ? `<div class="score-row" style="color:${p2.color}">${p2.name}: ${loc(p2?.id)} / 5 banken</div>` : ''}
+    ${statsHtml}
   `;
 }
 
@@ -777,9 +860,37 @@ document.getElementById('rematchBtn').addEventListener('click', () => {
 });
 
 document.getElementById('copyLink').addEventListener('click', () => {
-  navigator.clipboard.writeText(window.location.origin + `/room/${roomId}`)
-    .then(() => showToast('🔗 Link gekopieerd.', 'info'));
+  const url = window.location.origin + `/room/${roomId}`;
+  if (navigator.share) {
+    navigator.share({ title: 'Square Off', text: 'Speel Square Off met mij!', url }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(url).then(() => showToast('🔗 Link gekopieerd.', 'info'));
+  }
 });
+
+// Mute button
+const _muteBtn = document.getElementById('muteBtn');
+if (_muteBtn) {
+  _muteBtn.textContent = localStorage.getItem('squareoff_muted') === '1' ? '🔇' : '🔊';
+  _muteBtn.addEventListener('click', () => {
+    _muteBtn.textContent = SFX.toggle() ? '🔇' : '🔊';
+  });
+}
+
+// QR button
+const _qrBtn = document.getElementById('qrBtn');
+if (_qrBtn) {
+  _qrBtn.addEventListener('click', () => {
+    const url = window.location.origin + `/room/${roomId}`;
+    document.getElementById('qrUrl').textContent = url;
+    document.getElementById('qrModal').style.display = 'flex';
+    if (typeof QRCode !== 'undefined') {
+      QRCode.toCanvas(document.getElementById('qrCanvas'), url,
+        { width: 180, color: { dark: '#e8a020', light: '#0e1128' } }
+      ).catch(() => {});
+    }
+  });
+}
 
 // ---- Log ----
 let prevGrid = null;

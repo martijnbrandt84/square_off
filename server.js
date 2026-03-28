@@ -6,7 +6,7 @@ const path = require('path');
 
 process.on('uncaughtException',  (err) => console.error('Fout:', err));
 process.on('unhandledRejection', (err) => console.error('Promise fout:', err));
-const SERVER_VERSION = '2026-03-27-v4';
+const SERVER_VERSION = '2026-03-27-v5';
 console.log(`[Square Off] server starting — version ${SERVER_VERSION}`);
 
 const app = express();
@@ -265,9 +265,23 @@ function computeBotMove(room) {
       }
     }
   }
-  // 3. Claim any cell
-  for (const move of moves) {
-    if (cellsCompletedByMove(lines, grid, size, move).length > 0) return move;
+  // 3. Claim any cell — prefer bribe/bomb specials (+6), avoid hitman (-10)
+  const scoringMoves = moves.filter(m => cellsCompletedByMove(lines, grid, size, m).length > 0);
+  if (scoringMoves.length > 0) {
+    scoringMoves.sort((a, b) => {
+      const spScore = (move) => {
+        const cells = cellsCompletedByMove(lines, grid, size, move);
+        let s = 0;
+        for (const { row, col } of cells) {
+          const sp = grid[row * size + col].special?.id;
+          if (sp === 'bribe' || sp === 'bomb') s += 6;
+          if (sp === 'hitman') s -= 10;
+        }
+        return s;
+      };
+      return spScore(b) - spScore(a);
+    });
+    return scoringMoves[0];
   }
   // 4. Safe moves (don't create 3-sided key locations for opponent)
   const safe = moves.filter(m => {
@@ -284,16 +298,41 @@ function computeBotMove(room) {
 
 function computeBotBombTarget(room) {
   const { size, lines, grid } = room;
-  let best = null, bestScore = -1;
+  const humanId = room.players.find(p => !p.isBot)?.id;
+  let best = null, bestScore = -Infinity;
+
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
       const cell = grid[row * size + col];
-      if (cell.owner) continue;
-      const sides = getCellSides(lines, size, row, col);
-      if (sides === 0) continue;
-      let score = sides;
-      if (cell.isKeyLocation && sides >= 3) score += 12;
-      else if (cell.isKeyLocation) score += 5;
+      if (cell.owner) continue; // can only bomb unowned cells
+
+      // Simulate removing all 4 walls of this cell
+      const sim = cloneLines(lines);
+      sim.hLines[row][col]     = null;
+      sim.hLines[row + 1][col] = null;
+      sim.vLines[row][col]     = null;
+      sim.vLines[row][col + 1] = null;
+
+      let score = 0;
+      const neighbors = [
+        [row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1],
+      ];
+      for (const [nr, nc] of neighbors) {
+        if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+        const nb = grid[nr * size + nc];
+        const before = getCellSides(lines, size, nr, nc);
+        const after  = getCellSides(sim, size, nr, nc);
+        if (nb.owner === humanId && after < 4 && before === 4) {
+          // Human-owned cell gets unclaimed
+          score += nb.isKeyLocation ? 25 : 8;
+        } else if (!nb.owner && before === 3 && after < 3) {
+          // Human's 3-sided cell gets pushed back (harder to complete)
+          score += nb.isKeyLocation ? 12 : 4;
+        }
+      }
+      // Tiebreaker: walls on the bombed cell itself
+      score += getCellSides(lines, size, row, col) * 0.5;
+
       if (score > bestScore) { bestScore = score; best = { row, col }; }
     }
   }

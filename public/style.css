@@ -656,3 +656,12 @@ body.game-page {
   .sr-emoji { font-size: 1.7rem; }
   .sr-name  { font-size: 1rem; }
 }
+
+/* ---- Stats row (game over modal) ---- */
+.stats-row { font-size: 0.73rem; color: var(--text2); margin-top: 0.6rem; letter-spacing: 0.04em; }
+
+/* ---- QR modal ---- */
+.qr-modal { max-width: 260px; }
+.qr-modal h2 { margin-bottom: 0; }
+.qr-modal canvas { display: block; margin: 1rem auto; border-radius: 4px; }
+.qr-url { font-size: 0.60rem; color: var(--text3); word-break: break-all; text-align: center; margin-top: 0.2rem; }

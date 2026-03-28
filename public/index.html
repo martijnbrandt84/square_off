@@ -140,7 +140,8 @@
       'Don Nero','Luca V.','Marco B.','Sofia R.','Dante','Giulia M.',
       'Carlo','Vincenzo','Nina','Il Duce','Fabio','Rosa','Matteo','Elisa'
     ];
-    document.getElementById('playerName').value = POOL[Math.floor(Math.random() * POOL.length)];
+    const _savedName = localStorage.getItem('squareoff_name');
+    document.getElementById('playerName').value = _savedName || POOL[Math.floor(Math.random() * POOL.length)];
 
     let selectedSize = 'small';
     let vsComputer   = true;
@@ -175,6 +176,7 @@
 
     document.getElementById('createBtn').addEventListener('click', () => {
       const name = document.getElementById('playerName').value.trim() || 'Don';
+      localStorage.setItem('squareoff_name', name);
       const roomId = genRoomId();
       const vc = vsComputer ? '&vsComputer=1' : '';
       window.location.href = `/room/${roomId}?name=${encodeURIComponent(name)}&size=${selectedSize}${vc}`;
@@ -182,6 +184,7 @@
 
     document.getElementById('joinBtn').addEventListener('click', () => {
       const name = document.getElementById('playerName').value.trim() || 'Don';
+      localStorage.setItem('squareoff_name', name);
       const code = document.getElementById('roomCode').value.trim().toLowerCase();
       if (!code) { document.getElementById('roomCode').focus(); return; }
       window.location.href = `/room/${code}?name=${encodeURIComponent(name)}`;
