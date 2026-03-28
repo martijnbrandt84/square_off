@@ -325,7 +325,7 @@ function renderBankDots(playerId, elementId) {
   const el = document.getElementById(elementId);
   if (!el || !room) return;
   const count = room.grid.filter(c => c.isKeyLocation && c.owner === playerId).length;
-  el.innerHTML = Array.from({ length: 5 }, (_, i) =>
+  el.innerHTML = Array.from({ length: 3 }, (_, i) =>
     `<span class="bank-dot${i < count ? ' claimed' : ''}"></span>`
   ).join('');
 }

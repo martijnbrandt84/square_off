@@ -287,16 +287,30 @@ function computeBotMove(room) {
     });
     return goodScoring[0];
   }
-  // 4. Safe moves (don't create 3-sided key locations for opponent)
-  const safe = moves.filter(m => {
-    if (threatsCreatedByMove(lines, grid, size, m) > 0) return false;
+  // Helper: does this move make an unowned bank 3-sided (giving opponent easy score)?
+  const givesOpponentBank = m => {
     const nl = applyLineToLines(lines, m);
-    return !getAdjacentCells(m, size).some(({ row, col }) => {
+    return getAdjacentCells(m, size).some(({ row, col }) => {
       const cell = grid[row * size + col];
       return cell && !cell.owner && cell.isKeyLocation && getCellSides(nl, size, row, col) === 3;
     });
+  };
+
+  // 4. Safe moves (no 3-sided threats on any cell, no bank handed to opponent)
+  const safe = moves.filter(m => {
+    if (threatsCreatedByMove(lines, grid, size, m) > 0) return false;
+    return !givesOpponentBank(m);
   });
-  const pool = safe.length > 0 ? safe : moves;
+  if (safe.length > 0) return safe[Math.floor(Math.random() * safe.length)];
+
+  // 5. No safe move: taking hitman (skip own turn) beats handing opponent a bank
+  const hitmanMoves = scoringMoves.filter(isHitmanOnly);
+  const hitmanNoBankRisk = hitmanMoves.filter(m => !givesOpponentBank(m));
+  if (hitmanNoBankRisk.length > 0) return hitmanNoBankRisk[0];
+
+  // 6. Last resort: avoid giving opponent a bank if at all possible
+  const noBankRisk = moves.filter(m => !givesOpponentBank(m));
+  const pool = noBankRisk.length > 0 ? noBankRisk : moves;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
