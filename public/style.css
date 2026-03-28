@@ -113,7 +113,6 @@ body.lobby {
   height: auto;
   display: block;
   margin: 0 auto 0.25rem;
-  filter: drop-shadow(0 0 32px rgba(232,138,10,0.55)) drop-shadow(0 2px 8px rgba(0,0,0,0.80));
 }
 
 .title-sub {
