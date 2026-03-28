@@ -56,6 +56,8 @@ let lastTouchLine  = null;
 let claimedFlashes    = []; // {idx, color, t}
 let bombFlashes       = []; // {row, col, t}
 let specialAnimations = []; // {type, t, cellRow, cellCol}
+let lastLine          = null; // {type, row, col, t} — most recent placed line
+let gameOverAnim      = null; // {t, winnerId, winColor, callback}
 
 // ---- SFX (Web Audio API — lazy init, iOS-safe) ----
 const SFX = (() => {
@@ -146,19 +148,23 @@ socket.on('connect', () => {
 socket.on('room-update', (updatedRoom) => {
   const wasWaiting = !room || room.status === 'waiting';
 
-  // Detect opponent line placement
+  // Detect newly placed line — for opponent sound + last-move highlight
   if (room?.lines && updatedRoom.lines) {
     const { hLines: oh, vLines: ov } = room.lines;
     const { hLines: nh, vLines: nv } = updatedRoom.lines;
     let oppPlaced = false;
-    outer: for (let r = 0; r < nh.length; r++)
+    for (let r = 0; r < nh.length; r++)
       for (let c = 0; c < nh[r].length; c++)
-        if (!oh[r]?.[c] && nh[r][c] && nh[r][c] !== myId) { oppPlaced = true; break outer; }
-    if (!oppPlaced) {
-      outer2: for (let r = 0; r < nv.length; r++)
-        for (let c = 0; c < nv[r].length; c++)
-          if (!ov[r]?.[c] && nv[r][c] && nv[r][c] !== myId) { oppPlaced = true; break outer2; }
-    }
+        if (!oh[r]?.[c] && nh[r][c]) {
+          if (nh[r][c] !== myId) oppPlaced = true;
+          lastLine = { type: 'h', row: r, col: c, t: Date.now() };
+        }
+    for (let r = 0; r < nv.length; r++)
+      for (let c = 0; c < nv[r].length; c++)
+        if (!ov[r]?.[c] && nv[r][c]) {
+          if (nv[r][c] !== myId) oppPlaced = true;
+          lastLine = { type: 'v', row: r, col: c, t: Date.now() };
+        }
     if (oppPlaced) SFX.oppLine();
   }
 
@@ -190,11 +196,23 @@ socket.on('room-update', (updatedRoom) => {
   }
 
   updateLog(updatedRoom);
-  const prevSize = room?.size;
+  const prevSize   = room?.size;
+  const prevStatus = room?.status;
   // Capture previous room state BEFORE overwriting — needed for bomb unclaim animation
   const prevRoom = room;
   room = updatedRoom;
   myId = socket.id;
+
+  // Rematch: new game started — close modal, reset animation state
+  if ((room.status === 'playing' || room.status === 'waiting') && prevStatus === 'finished') {
+    document.getElementById('gameOverModal').style.display = 'none';
+    gameOverAnim = null;
+    claimedFlashes = [];
+    bombFlashes = [];
+    specialAnimations = [];
+    lastLine = null;
+  }
+
   updateUI();
   // Resize canvas only when room first loads or grid size changes, not on every turn
   if (!prevSize || prevSize !== room.size) resizeCanvas();
@@ -209,7 +227,11 @@ socket.on('room-update', (updatedRoom) => {
   }
   drawBoard();
 
-  if (room.status === 'finished') showGameOver();
+  if (room.status === 'finished' && !gameOverAnim) {
+    const winner = room.winner ? room.players.find(p => p.id === room.winner) : null;
+    gameOverAnim = { t: Date.now(), winnerId: room.winner, winColor: winner?.color || '#888', callback: showGameOver };
+    startPulse();
+  }
 
   waitingForBomb = room.bombTarget === myId;
 
@@ -242,7 +264,8 @@ function startPulse() {
   if (rafId) return;
   function tick() {
     if (room) drawBoard(); // drawBoard cleans stale flashes
-    const hasFlashes = claimedFlashes.length > 0 || bombFlashes.length > 0 || specialAnimations.length > 0;
+    const hasFlashes = claimedFlashes.length > 0 || bombFlashes.length > 0 || specialAnimations.length > 0
+      || gameOverAnim || (lastLine && Date.now() - lastLine.t < 1500);
     if (room?.status === 'playing' || hasFlashes) {
       rafId = requestAnimationFrame(tick);
     } else {
@@ -418,6 +441,31 @@ function drawBoard() {
         if (isHov) drawLine('v', row, col, getMyColor(), true);
       }
     }
+
+  // Last-move highlight — pulsing glow on the most recently placed line
+  const LAST_LINE_DUR = 1500;
+  if (lastLine && Date.now() - lastLine.t < LAST_LINE_DUR) {
+    const llAge = (Date.now() - lastLine.t) / LAST_LINE_DUR;
+    const llOwner = lastLine.type === 'h'
+      ? room.lines.hLines[lastLine.row]?.[lastLine.col]
+      : room.lines.vLines[lastLine.row]?.[lastLine.col];
+    const llColor = room.players.find(p => p.id === llOwner)?.color || '#fff';
+    const llPulse = (1 - llAge) * (0.55 + 0.45 * Math.sin(llAge * Math.PI * 7));
+    ctx.save();
+    ctx.shadowColor = llColor;
+    ctx.shadowBlur  = 22 * (1 - llAge);
+    ctx.strokeStyle = hexToRgba(llColor, 0.55 + llPulse * 0.45);
+    ctx.lineWidth   = 6 + llPulse * 5;
+    ctx.lineCap     = 'square';
+    const llX = OFFSET_X + lastLine.col * CELL_SIZE;
+    const llY = OFFSET_Y + lastLine.row * CELL_SIZE;
+    ctx.beginPath();
+    if (lastLine.type === 'h') { ctx.moveTo(llX, llY); ctx.lineTo(llX + CELL_SIZE, llY); }
+    else                       { ctx.moveTo(llX, llY); ctx.lineTo(llX, llY + CELL_SIZE); }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
 
   // Claim flash animations (drawn after lines, before dots)
   const _now = Date.now();
@@ -603,6 +651,70 @@ function drawBoard() {
       ctx.fillStyle = MAP.dot;
       ctx.beginPath(); ctx.arc(x, y, DOT_R, 0, Math.PI * 2); ctx.fill();
     }
+
+  // Game-over cinematic — winner pulse + dark curtain + name, then modal
+  if (gameOverAnim) {
+    const GO_DUR = 2600;
+    const goAge  = Math.min((Date.now() - gameOverAnim.t) / GO_DUR, 1);
+    if (goAge >= 1) {
+      const cb = gameOverAnim.callback;
+      gameOverAnim = null;
+      cb();
+    } else {
+      const boardW = size * CELL_SIZE + OFFSET_X * 2;
+      const boardH = size * CELL_SIZE + OFFSET_Y * 2;
+      const bx = 0, by = 0;
+
+      // Phase 1 — winner cells pulse (0 → 1, fades near end)
+      const pulse    = 0.35 + 0.35 * Math.sin(goAge * Math.PI * 10);
+      const cellAlpha = goAge < 0.65 ? pulse : pulse * (1 - (goAge - 0.65) / 0.35);
+      ctx.save();
+      for (let row = 0; row < size; row++)
+        for (let col = 0; col < size; col++) {
+          const cell = grid[row * size + col];
+          if (cell.owner !== gameOverAnim.winnerId) continue;
+          const dx = OFFSET_X + col * CELL_SIZE, dy = OFFSET_Y + row * CELL_SIZE;
+          ctx.fillStyle = hexToRgba(gameOverAnim.winColor, Math.max(0, cellAlpha) * 0.70);
+          ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
+        }
+
+      // Phase 2 — dark curtain fades in (0.35 → 1.0)
+      if (goAge > 0.35) {
+        const curtain = (goAge - 0.35) / 0.65;
+        ctx.fillStyle = `rgba(0,0,0,${(curtain * 0.82).toFixed(3)})`;
+        ctx.fillRect(bx, by, boardW, boardH);
+      }
+
+      // Phase 3 — text appears (0.58 → 1.0)
+      if (goAge > 0.58) {
+        const textA = (goAge - 0.58) / 0.42;
+        const cx = boardW / 2, cy = boardH / 2;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const winner = gameOverAnim.winnerId ? room?.players?.find(p => p.id === gameOverAnim.winnerId) : null;
+
+        // Trophy / handshake emoji
+        ctx.font     = `${Math.floor(CELL_SIZE * 0.78)}px serif`;
+        ctx.globalAlpha = textA * 0.95;
+        ctx.fillText(winner ? '🏆' : '🤝', cx, cy - CELL_SIZE * 1.05);
+
+        // Winner name
+        ctx.font        = `${Math.floor(CELL_SIZE * 1.05)}px 'Bebas Neue', sans-serif`;
+        ctx.globalAlpha = textA;
+        ctx.fillStyle   = '#ffffff';
+        ctx.fillText(winner ? winner.name.toUpperCase() : 'DRAW', cx, cy - CELL_SIZE * 0.28);
+
+        // Sub-line
+        if (winner) {
+          ctx.font        = `${Math.floor(CELL_SIZE * 0.40)}px 'Bebas Neue', sans-serif`;
+          ctx.globalAlpha = textA * 0.85;
+          ctx.fillStyle   = hexToRgba(gameOverAnim.winColor, 1);
+          ctx.fillText('RULES THE CITY', cx, cy + CELL_SIZE * 0.45);
+        }
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
+  }
 }
 
 function drawCityBlock(cell, x, y, cs) {
