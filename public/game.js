@@ -102,6 +102,7 @@ const SFX = (() => {
     special()   { sweep(200, 900, 'sawtooth', 0.30, 0.16); beep(900, 'sine', 0.18, 0.14, 0.25); },
     razzia()    { sweep(950, 500, 'sawtooth', 0.30, 0.11); setTimeout(() => sweep(950, 500, 'sawtooth', 0.30, 0.11), 330); setTimeout(() => sweep(950, 500, 'sawtooth', 0.28, 0.09), 660); },
     steekpenning() { [2100, 2600, 3100, 3700].forEach((f, i) => setTimeout(() => beep(f, 'sine', 0.12, 0.18), i * 55)); },
+    bomb()      { beep(60, 'sine', 0.06, 0.28); setTimeout(() => { sweep(280, 60, 'sawtooth', 0.45, 0.22); beep(120, 'sine', 0.55, 0.18); }, 60); setTimeout(() => beep(55, 'sine', 0.6, 0.14), 400); },
     win()       { [523, 659, 784, 1047].forEach((f, i) => beep(f, 'sine', 0.4, 0.30, i * 0.10)); },
     lose()      { [392, 349, 311, 262].forEach((f, i) => beep(f, 'sine', 0.38, 0.22, i * 0.12)); },
   };
@@ -178,7 +179,7 @@ socket.on('room-update', (updatedRoom) => {
           setTimeout(() => {
             if (spId === 'hitman') SFX.razzia();
             else if (spId === 'bribe') SFX.steekpenning();
-            else SFX.special();
+            else SFX.bomb();
           }, 300);
           specialShown = true;
         }
