@@ -389,8 +389,7 @@ function drawBoard() {
     const sloopPulse = 0.55 + 0.45 * Math.sin(Date.now() / 220);
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
-        const bombCell = grid[row * size + col];
-        if (bombCell.owner || bombCell.isKeyLocation || bombCell.special) continue;
+        if (grid[row * size + col].owner) continue;
         const dx = OFFSET_X + col * CELL_SIZE, dy = OFFSET_Y + row * CELL_SIZE;
         const sloopHov = hoveredBombCell?.row === row && hoveredBombCell?.col === col;
         if (sloopHov) {
@@ -911,7 +910,7 @@ function getCellAt(mx, my) {
   const row = Math.floor((my - OFFSET_Y) / CELL_SIZE);
   if (row < 0 || row >= room.size || col < 0 || col >= room.size) return null;
   const cell = room.grid[row * room.size + col];
-  if (cell.owner || cell.isKeyLocation || cell.special) return null;
+  if (cell.owner) return null;
   return { row, col };
 }
 

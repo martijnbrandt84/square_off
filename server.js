@@ -6,7 +6,7 @@ const path = require('path');
 
 process.on('uncaughtException',  (err) => console.error('Error:', err));
 process.on('unhandledRejection', (err) => console.error('Promise error:', err));
-const SERVER_VERSION = '2026-03-28-v2';
+const SERVER_VERSION = '2026-03-28-v3';
 console.log(`[Square Off] server starting — version ${SERVER_VERSION}`);
 
 const app = express();
@@ -304,7 +304,7 @@ function computeBotBombTarget(room) {
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
       const cell = grid[row * size + col];
-      if (cell.owner || cell.isKeyLocation || cell.special) continue; // can't bomb owned, bank, or special cells
+      if (cell.owner) continue; // can only bomb unowned cells
 
       // Simulate removing all 4 walls of this cell
       const sim = cloneLines(lines);
@@ -513,8 +513,7 @@ io.on('connection', (socket) => {
     if (!room || room.bombTarget !== socket.id) return;
     const { size } = room;
     if (row < 0 || row >= size || col < 0 || col >= size) return;
-    const targetCell = room.grid[row * size + col];
-    if (targetCell.owner || targetCell.isKeyLocation || targetCell.special) return;
+    if (room.grid[row * size + col].owner) return;
     const unclaimed = applyBomb(room, row, col);
     room.bombTarget = null;
     if (room.bombScoredExtra) {
