@@ -829,11 +829,17 @@ function drawLine(type, row, col, color, ghost) {
     return;
   }
 
-  // Solid, bright line — no glow
+  // Neon: outer glow + bright core
+  ctx.shadowColor = color;
+  ctx.shadowBlur  = 18;
   ctx.strokeStyle = color;
-  ctx.lineWidth   = 5;
-  ctx.shadowBlur  = 0;
+  ctx.lineWidth   = 3;
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.shadowBlur  = 6;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.shadowBlur  = 0;
 }
 
 // ---- Canvas interaction ----
