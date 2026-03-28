@@ -4,9 +4,9 @@ const { Server } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 
-process.on('uncaughtException',  (err) => console.error('Fout:', err));
-process.on('unhandledRejection', (err) => console.error('Promise fout:', err));
-const SERVER_VERSION = '2026-03-27-v5';
+process.on('uncaughtException',  (err) => console.error('Error:', err));
+process.on('unhandledRejection', (err) => console.error('Promise error:', err));
+const SERVER_VERSION = '2026-03-28-v1';
 console.log(`[Square Off] server starting — version ${SERVER_VERSION}`);
 
 const app = express();
@@ -32,17 +32,17 @@ app.get('/version', (req, res) => res.json({ version: SERVER_VERSION, specials: 
 // Swap this block to change themes without touching game logic.
 // ================================================================
 const THEME_SPECIALS = [
-  { id: 'hitman', emoji: '🚓', name: 'Razzia',        desc: 'Tegenstander slaat een beurt over' },
-  { id: 'bribe',  emoji: '💸', name: 'Steekpenning',  desc: 'Speel direct een extra beurt' },
-  { id: 'bomb',   emoji: '💣', name: 'Handgranaat',   desc: 'Verwijder alle lijnen rondom een gekozen vakje' },
+  { id: 'hitman', emoji: '🚓', name: 'Raid',     desc: 'Opponent skips a turn' },
+  { id: 'bribe',  emoji: '💸', name: 'Bribery',  desc: 'Play an extra turn immediately' },
+  { id: 'bomb',   emoji: '💣', name: 'Grenade',  desc: 'Remove all walls around a chosen cell' },
 ];
 
 const KEY_LOCATION_DEFS = [
-  { id: 'bank',       emoji: '🏦', name: 'De Bank',       glow: '#e8a020' },
-  { id: 'casino',     emoji: '🏦', name: 'Het Casino',    glow: '#e8a020' },
-  { id: 'haven',      emoji: '🏦', name: 'De Haven',      glow: '#e8a020' },
-  { id: 'stadhuis',   emoji: '🏦', name: 'Het Stadhuis',  glow: '#e8a020' },
-  { id: 'gevangenis', emoji: '🏦', name: 'De Gevangenis', glow: '#e8a020' },
+  { id: 'bank',       emoji: '🏦', name: 'The Bank',    glow: '#e8a020' },
+  { id: 'casino',     emoji: '🏦', name: 'The Casino',  glow: '#e8a020' },
+  { id: 'haven',      emoji: '🏦', name: 'The Harbor',  glow: '#e8a020' },
+  { id: 'stadhuis',   emoji: '🏦', name: 'City Hall',   glow: '#e8a020' },
+  { id: 'gevangenis', emoji: '🏦', name: 'The Prison',  glow: '#e8a020' },
 ];
 
 const WIN_LOCATIONS = 3; // claim this many key locations to win
@@ -432,7 +432,7 @@ function scheduleBotMove(room, roomId) {
 
       const move = computeBotMove(r);
       if (move) processMove(r, roomId, bot.id, move.type, move.row, move.col);
-    } catch (err) { console.error('Bot fout:', err); }
+    } catch (err) { console.error('Bot error:', err); }
   }, 700);
 }
 
@@ -600,4 +600,4 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 const PORT = process.env.PORT || 3003;
-server.listen(PORT, () => console.log(`Square Off draait op http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Square Off running on http://localhost:${PORT}`));

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,25 +23,25 @@
 
     <header class="lobby-header">
       <img src="/images/name_transparent.PNG" alt="Square Off" class="lobby-title-img">
-      <p class="title-sub">Claim de wijken · Sluit in · Domineer de stad</p>
+      <p class="title-sub">Claim the blocks · Box in · Dominate the city</p>
     </header>
 
     <div class="lobby-panel">
       <div class="field-group">
-        <label class="field-label">Jouw naam</label>
+        <label class="field-label">Your name</label>
         <input type="text" id="playerName" maxlength="20" class="field-input" autocomplete="off">
       </div>
 
       <div class="field-row">
         <div class="field-group field-half">
-          <label class="field-label">Bord</label>
+          <label class="field-label">Board</label>
           <div class="choice-row">
             <button class="choice-btn active" data-size="small">6×6</button>
             <button class="choice-btn" data-size="large">8×8</button>
           </div>
         </div>
         <div class="field-group field-half">
-          <label class="field-label">Modus</label>
+          <label class="field-label">Mode</label>
           <div class="choice-row">
             <button class="choice-btn" id="modeMulti">👥 Multi</button>
             <button class="choice-btn active" id="modeSingle">🤖 CPU</button>
@@ -49,18 +49,18 @@
         </div>
       </div>
 
-      <button class="action-btn primary-btn" id="createBtn">Kamer starten →</button>
+      <button class="action-btn primary-btn" id="createBtn">Start room →</button>
 
       <!-- Alleen zichtbaar bij multiplayer -->
       <div id="joinSection" class="join-section">
-        <div class="join-divider">— of join een bestaande kamer —</div>
+        <div class="join-divider">— or join an existing room —</div>
         <div class="join-row">
-          <input type="text" id="roomCode" placeholder="Kamercode" maxlength="8" class="field-input code-input" autocomplete="off">
+          <input type="text" id="roomCode" placeholder="Room code" maxlength="8" class="field-input code-input" autocomplete="off">
           <button class="action-btn join-btn" id="joinBtn">Join →</button>
         </div>
       </div>
 
-      <button class="rules-fab" id="rulesBtn" title="Spelregels">?</button>
+      <button class="rules-fab" id="rulesBtn" title="Rules">?</button>
     </div>
 
   </div>
@@ -70,44 +70,44 @@
     <div class="modal rules-modal">
       <button class="modal-close" onclick="document.getElementById('rulesModal').style.display='none'">✕</button>
 
-      <h2>Spelregels</h2>
+      <h2>Rules</h2>
 
       <div class="rules-section">
-        <h3>Doel</h3>
-        <p>Beheers de stad: wees de eerste die <strong>3 van de 5 banken 🏦</strong> claimt.</p>
+        <h3>Goal</h3>
+        <p>Control the city: be the first to claim <strong>3 of the 5 banks 🏦</strong>.</p>
       </div>
 
       <div class="rules-section">
-        <h3>Hoe speel je?</h3>
-        <p><strong>1.</strong> Spelers wisselen beurten af.</p>
-        <p><strong>2.</strong> Klik op een <strong>grenslijn</strong> tussen twee blokken om die te trekken.</p>
-        <p><strong>3.</strong> Sluit je alle <strong>vier zijden</strong> van een blok in? Dan is het blok van jou — en speel je <strong>direct nog een beurt</strong>.</p>
-        <p><strong>4.</strong> Bevat een blok een 🏦? Dan telt het mee voor de overwinning.</p>
+        <h3>How to play</h3>
+        <p><strong>1.</strong> Players take turns.</p>
+        <p><strong>2.</strong> Click a <strong>border</strong> between two blocks to draw it.</p>
+        <p><strong>3.</strong> Close all <strong>four sides</strong> of a block? It's yours — and you play <strong>one more turn</strong>.</p>
+        <p><strong>4.</strong> Does a block contain a 🏦? Then it counts toward victory.</p>
       </div>
 
       <div class="rules-section">
         <h3>⚡ Specials</h3>
-        <p>Bepaalde blokken bevatten een special. Claim je zo'n blok, dan activeer je die kracht direct.</p>
+        <p>Some blocks contain a special. Claim one and its power activates immediately.</p>
         <div class="specials-list">
           <div class="special-item">
             <span class="sp-emoji">🚓</span>
             <div>
-              <strong>Razzia</strong>
-              <span>Gepakt! De smeris arresteert jou — jij slaat een beurt over.</span>
+              <strong>Raid</strong>
+              <span>Busted! The cops got you — skip a turn.</span>
             </div>
           </div>
           <div class="special-item">
             <span class="sp-emoji">💸</span>
             <div>
-              <strong>Steekpenning</strong>
-              <span>Geld praat — jij speelt een extra beurt.</span>
+              <strong>Bribery</strong>
+              <span>Money talks — play an extra turn.</span>
             </div>
           </div>
           <div class="special-item">
             <span class="sp-emoji">💣</span>
             <div>
-              <strong>Handgranaat</strong>
-              <span>Kies een vakje — alle grenzen eromheen worden opgeblazen.</span>
+              <strong>Grenade</strong>
+              <span>Pick a cell — all walls around it are blown up.</span>
             </div>
           </div>
         </div>
@@ -116,10 +116,10 @@
       <div class="rules-section">
         <h3>💡 Tips</h3>
         <ul class="tips-list">
-          <li>Geef nooit zomaar een <strong>derde zijde</strong> aan een blok — de tegenstander sluit het in.</li>
-          <li>Hou bij welke 🏦 de tegenstander bijna heeft ingesloten — blokkeer op tijd.</li>
-          <li>Specials kunnen het spel omgooien. Pak ze vroeg.</li>
-          <li>💣 Een handgranaat kan een bijna-gesloten blok van de tegenstander redden.</li>
+          <li>Never hand your opponent a <strong>third side</strong> — they'll close the block.</li>
+          <li>Watch which 🏦 the opponent is close to claiming — block in time.</li>
+          <li>Specials can flip the game. Grab them early.</li>
+          <li>💣 A grenade can rescue a nearly-closed block from your opponent.</li>
         </ul>
       </div>
     </div>

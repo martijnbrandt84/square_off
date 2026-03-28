@@ -16,19 +16,19 @@ document.getElementById('roomCode').textContent = roomId;
 // ---- Theme ----
 const THEME = {
   keyLocations: [
-    { id: 'bank',       emoji: '🏦', name: 'De Bank',       glow: '#e88a0a' },
-    { id: 'casino',     emoji: '🏦', name: 'Het Casino',    glow: '#e88a0a' },
-    { id: 'haven',      emoji: '🏦', name: 'De Haven',      glow: '#e88a0a' },
-    { id: 'stadhuis',   emoji: '🏦', name: 'Het Stadhuis',  glow: '#e88a0a' },
-    { id: 'gevangenis', emoji: '🏦', name: 'De Gevangenis', glow: '#e88a0a' },
+    { id: 'bank',       emoji: '🏦', name: 'The Bank',   glow: '#e88a0a' },
+    { id: 'casino',     emoji: '🏦', name: 'The Casino', glow: '#e88a0a' },
+    { id: 'haven',      emoji: '🏦', name: 'The Harbor', glow: '#e88a0a' },
+    { id: 'stadhuis',   emoji: '🏦', name: 'City Hall',  glow: '#e88a0a' },
+    { id: 'gevangenis', emoji: '🏦', name: 'The Prison', glow: '#e88a0a' },
   ],
 };
 
 // ---- Specials info (for reveal popup) ----
 const SPECIALS_INFO = {
-  hitman: { emoji: '🚓', name: 'Razzia',       myDesc: 'Gepakt! De smeris arresteert jou — jij slaat een beurt over', oppDesc: 'Tegenstander werd gepakt door de smeris — die slaat een beurt over' },
-  bribe:  { emoji: '💸', name: 'Steekpenning', myDesc: 'Geld praat — jij speelt een extra beurt',                   oppDesc: 'Tegenstander heeft gesmeerd en speelt een extra beurt' },
-  bomb:   { emoji: '💣', name: 'Handgranaat',  myDesc: 'Kies een vakje — alle grenzen eromheen worden opgeblazen',  oppDesc: 'Tegenstander gooit een granaat — kies een doelwit' },
+  hitman: { emoji: '🚓', name: 'Raid',     myDesc: 'Busted! The cops got you — skip a turn',                    oppDesc: 'Opponent got busted — they skip a turn' },
+  bribe:  { emoji: '💸', name: 'Bribery',  myDesc: 'Money talks — play an extra turn',                         oppDesc: 'Opponent bribed their way to an extra turn' },
+  bomb:   { emoji: '💣', name: 'Grenade',  myDesc: 'Pick a cell — all walls around it are blown up',           oppDesc: 'Opponent throws a grenade — pick a target' },
 };
 
 // ---- City map palette — matches title image deep indigo-navy night ----
@@ -214,15 +214,15 @@ socket.on('room-update', (updatedRoom) => {
   waitingForBomb = room.bombTarget === myId;
 
   if (waitingForBomb) {
-    setHint('💣 Kies een vakje — alle lijnen eromheen worden verwijderd.', 'danger');
+    setHint('💣 Choose a cell — all walls around it will be removed.', 'danger');
   } else if (room.turn === myId && room.status === 'playing') {
-    setHint('Jouw beurt — trek een grens.', 'my-turn');
+    setHint('Your turn — draw a border.', 'my-turn');
   } else if (room.status === 'playing') {
     const opp = room.players.find(p => p.id !== myId && !p.isBot);
-    if (opp?.disconnected) setHint('⚠️ Tegenstander verbroken — wacht op reconnect (25s)...', 'wait');
-    else setHint(room.vsComputer ? '🤖 Don Kraken denkt na...' : 'Tegenstander is aan zet...', 'wait');
+    if (opp?.disconnected) setHint('⚠️ Opponent disconnected — waiting for reconnect (25s)...', 'wait');
+    else setHint(room.vsComputer ? '🤖 Don Kraken is thinking...' : "Opponent's turn...", 'wait');
   } else if (room.status === 'waiting') {
-    setHint('Wachten op tweede speler...', 'wait');
+    setHint('Waiting for second player...', 'wait');
   } else {
     setHint('', '');
   }
@@ -231,10 +231,10 @@ socket.on('room-update', (updatedRoom) => {
   else stopPulse();
 });
 
-socket.on('room-full', () => { alert('Kamer vol.'); window.location.href = '/'; });
+socket.on('room-full', () => { alert('Room is full.'); window.location.href = '/'; });
 socket.on('player-disconnected', () => showToast('⚠️ Tegenstander verbroken.', 'warn'));
 socket.on('rematch-vote', ({ votes }) => {
-  document.getElementById('rematchStatus').textContent = `${votes}/2 willen herspelen...`;
+  document.getElementById('rematchStatus').textContent = `${votes}/2 want a rematch...`;
 });
 
 // ---- Animation loop ----
@@ -274,9 +274,11 @@ function updateUI() {
     document.getElementById('p2score').textContent = p2banks;
   }
   const statusEl = document.getElementById('statusBadge');
-  if (room.status === 'waiting')  { statusEl.textContent = '⏳ Wachten';   statusEl.className = 'status-badge waiting'; }
-  if (room.status === 'playing')  { statusEl.textContent = '⚔️ In strijd'; statusEl.className = 'status-badge playing'; }
-  if (room.status === 'finished') { statusEl.textContent = '🏁 Afgelopen'; statusEl.className = 'status-badge finished'; }
+  if (statusEl) {
+    if (room.status === 'waiting')  { statusEl.textContent = '⏳ Waiting';  statusEl.className = 'status-badge waiting'; }
+    if (room.status === 'playing')  { statusEl.textContent = '⚔️ Playing';  statusEl.className = 'status-badge playing'; }
+    if (room.status === 'finished') { statusEl.textContent = '🏁 Finished'; statusEl.className = 'status-badge finished'; }
+  }
 
   document.getElementById('powerDisplay').style.display = 'none';
 }
@@ -302,7 +304,7 @@ function showSpecialReveal(special, isMySpecial) {
   el.innerHTML = `
     <div class="sr-emoji">${info.emoji}</div>
     <div class="sr-body">
-      <div class="sr-label">${isMySpecial ? 'Jij pakt' : 'Tegenstander pakt'}</div>
+      <div class="sr-label">${isMySpecial ? 'You got' : 'Opponent got'}</div>
       <div class="sr-name">${info.name}</div>
       <div class="sr-desc">${desc}</div>
     </div>
@@ -842,7 +844,7 @@ function showGameOver() {
   if (winner?.id === myId) SFX.win();
   else if (winner) SFX.lose();
   document.getElementById('modalIcon').textContent  = winner ? '🏆' : '🤝';
-  document.getElementById('modalTitle').textContent = winner ? `${winner.name} heerst de stad!` : 'Gelijkspel.';
+  document.getElementById('modalTitle').textContent = winner ? `${winner.name} rules the city!` : 'Draw.';
   const p1 = room.players[0], p2 = room.players[1];
   const loc = (id) => room.grid.filter(c => c.isKeyLocation && c.owner === id).length;
   let statsHtml = '';
@@ -850,18 +852,18 @@ function showGameOver() {
     _lastRecordedTurnCount = room.turnCount;
     const s = recordResult(winner.id === myId);
     const streak = Math.abs(s.streak) > 1 ? ` &nbsp;${s.streak > 0 ? '🔥' : '💀'}${Math.abs(s.streak)}` : '';
-    statsHtml = `<div class="stats-row">${s.wins}w&nbsp;/&nbsp;${s.losses}v${streak}</div>`;
+    statsHtml = `<div class="stats-row">${s.wins}W&nbsp;/&nbsp;${s.losses}L${streak}</div>`;
   }
   document.getElementById('modalScores').innerHTML = `
-    <div class="score-row" style="color:${p1?.color}">${p1?.name}: ${loc(p1?.id)} / 5 banken</div>
-    ${p2 ? `<div class="score-row" style="color:${p2.color}">${p2.name}: ${loc(p2?.id)} / 5 banken</div>` : ''}
+    <div class="score-row" style="color:${p1?.color}">${p1?.name}: ${loc(p1?.id)} / 5 banks</div>
+    ${p2 ? `<div class="score-row" style="color:${p2.color}">${p2.name}: ${loc(p2?.id)} / 5 banks</div>` : ''}
     ${statsHtml}
   `;
 }
 
 document.getElementById('rematchBtn').addEventListener('click', () => {
   socket.emit('request-rematch', { roomId });
-  document.getElementById('rematchStatus').textContent = 'Wachten op tegenstander...';
+  document.getElementById('rematchStatus').textContent = 'Waiting for opponent...';
 });
 
 // Share + QR — één knop, één modal
@@ -881,9 +883,9 @@ document.getElementById('shareBtn').addEventListener('click', openShareModal);
 document.getElementById('qrShareBtn').addEventListener('click', () => {
   const url = window.location.origin + `/room/${roomId}`;
   if (navigator.share) {
-    navigator.share({ title: 'Square Off', text: 'Speel Square Off met mij!', url }).catch(() => {});
+    navigator.share({ title: 'Square Off', text: 'Play Square Off with me!', url }).catch(() => {});
   } else {
-    navigator.clipboard.writeText(url).then(() => showToast('🔗 Link gekopieerd.', 'info'));
+    navigator.clipboard.writeText(url).then(() => showToast('🔗 Link copied.', 'info'));
   }
 });
 
@@ -908,10 +910,10 @@ function updateLog(newRoom) {
       const entry = document.createElement('div');
       if (cur.isKeyLocation) {
         entry.className = 'log-entry log-key';
-        entry.innerHTML = `🏦 <span style="color:${owner?.color}">${owner?.name}</span> nam <strong>${cur.keyDef.name}</strong>`;
+        entry.innerHTML = `🏦 <span style="color:${owner?.color}">${owner?.name}</span> took <strong>${cur.keyDef.name}</strong>`;
       } else {
         entry.className = 'log-entry';
-        entry.innerHTML = `<span style="color:${owner?.color}">${owner?.name}</span> claimde blok${cur.special ? ' ' + cur.special.emoji : ''}`;
+        entry.innerHTML = `<span style="color:${owner?.color}">${owner?.name}</span> claimed block${cur.special ? ' ' + cur.special.emoji : ''}`;
       }
       entries.prepend(entry);
       if (entries.children.length > 30) entries.lastChild.remove();
