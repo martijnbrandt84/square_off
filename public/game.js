@@ -389,7 +389,8 @@ function drawBoard() {
     const sloopPulse = 0.55 + 0.45 * Math.sin(Date.now() / 220);
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
-        if (grid[row * size + col].owner) continue;
+        const bombCell = grid[row * size + col];
+        if (bombCell.owner || bombCell.isKeyLocation || bombCell.special) continue;
         const dx = OFFSET_X + col * CELL_SIZE, dy = OFFSET_Y + row * CELL_SIZE;
         const sloopHov = hoveredBombCell?.row === row && hoveredBombCell?.col === col;
         if (sloopHov) {
@@ -652,9 +653,9 @@ function drawBoard() {
       ctx.beginPath(); ctx.arc(x, y, DOT_R, 0, Math.PI * 2); ctx.fill();
     }
 
-  // Game-over cinematic — winner pulse + dark curtain + name, then modal
+  // Game-over cinematic — winner pulse + dark curtain, then modal fades in
   if (gameOverAnim) {
-    const GO_DUR = 2600;
+    const GO_DUR = 2200;
     const goAge  = Math.min((Date.now() - gameOverAnim.t) / GO_DUR, 1);
     if (goAge >= 1) {
       const cb = gameOverAnim.callback;
@@ -663,11 +664,10 @@ function drawBoard() {
     } else {
       const boardW = size * CELL_SIZE + OFFSET_X * 2;
       const boardH = size * CELL_SIZE + OFFSET_Y * 2;
-      const bx = 0, by = 0;
 
-      // Phase 1 — winner cells pulse (0 → 1, fades near end)
-      const pulse    = 0.35 + 0.35 * Math.sin(goAge * Math.PI * 10);
-      const cellAlpha = goAge < 0.65 ? pulse : pulse * (1 - (goAge - 0.65) / 0.35);
+      // Phase 1 — winner cells pulse (whole duration, fades as curtain closes)
+      const pulse     = 0.35 + 0.35 * Math.sin(goAge * Math.PI * 10);
+      const cellAlpha = goAge < 0.55 ? pulse : pulse * (1 - (goAge - 0.55) / 0.45);
       ctx.save();
       for (let row = 0; row < size; row++)
         for (let col = 0; col < size; col++) {
@@ -678,39 +678,11 @@ function drawBoard() {
           ctx.fillRect(dx + SI, dy + SI, CELL_SIZE - SI * 2, CELL_SIZE - SI * 2);
         }
 
-      // Phase 2 — dark curtain fades in (0.35 → 1.0)
-      if (goAge > 0.35) {
-        const curtain = (goAge - 0.35) / 0.65;
-        ctx.fillStyle = `rgba(0,0,0,${(curtain * 0.82).toFixed(3)})`;
-        ctx.fillRect(bx, by, boardW, boardH);
-      }
-
-      // Phase 3 — text appears (0.58 → 1.0)
-      if (goAge > 0.58) {
-        const textA = (goAge - 0.58) / 0.42;
-        const cx = boardW / 2, cy = boardH / 2;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        const winner = gameOverAnim.winnerId ? room?.players?.find(p => p.id === gameOverAnim.winnerId) : null;
-
-        // Trophy / handshake emoji
-        ctx.font     = `${Math.floor(CELL_SIZE * 0.78)}px serif`;
-        ctx.globalAlpha = textA * 0.95;
-        ctx.fillText(winner ? '🏆' : '🤝', cx, cy - CELL_SIZE * 1.05);
-
-        // Winner name
-        ctx.font        = `${Math.floor(CELL_SIZE * 1.05)}px 'Bebas Neue', sans-serif`;
-        ctx.globalAlpha = textA;
-        ctx.fillStyle   = '#ffffff';
-        ctx.fillText(winner ? winner.name.toUpperCase() : 'DRAW', cx, cy - CELL_SIZE * 0.28);
-
-        // Sub-line
-        if (winner) {
-          ctx.font        = `${Math.floor(CELL_SIZE * 0.40)}px 'Bebas Neue', sans-serif`;
-          ctx.globalAlpha = textA * 0.85;
-          ctx.fillStyle   = hexToRgba(gameOverAnim.winColor, 1);
-          ctx.fillText('RULES THE CITY', cx, cy + CELL_SIZE * 0.45);
-        }
-        ctx.globalAlpha = 1;
+      // Phase 2 — dark curtain fades in (0.30 → 1.0), ends fully black
+      if (goAge > 0.30) {
+        const curtain = (goAge - 0.30) / 0.70;
+        ctx.fillStyle = `rgba(0,0,0,${(curtain * 0.92).toFixed(3)})`;
+        ctx.fillRect(0, 0, boardW, boardH);
       }
       ctx.restore();
     }
@@ -938,7 +910,8 @@ function getCellAt(mx, my) {
   const col = Math.floor((mx - OFFSET_X) / CELL_SIZE);
   const row = Math.floor((my - OFFSET_Y) / CELL_SIZE);
   if (row < 0 || row >= room.size || col < 0 || col >= room.size) return null;
-  if (room.grid[row * room.size + col].owner) return null;
+  const cell = room.grid[row * room.size + col];
+  if (cell.owner || cell.isKeyLocation || cell.special) return null;
   return { row, col };
 }
 
@@ -950,7 +923,11 @@ function getMyColor() {
 let _lastRecordedTurnCount = -1;
 function showGameOver() {
   if (!room) return;
-  document.getElementById('gameOverModal').style.display = 'flex';
+  const modal = document.getElementById('gameOverModal');
+  modal.style.display = 'flex';
+  modal.classList.remove('modal-fadein');
+  void modal.offsetWidth; // force reflow so animation restarts
+  modal.classList.add('modal-fadein');
   stopPulse();
   const winner = room.winner ? room.players.find(p => p.id === room.winner) : null;
   if (winner?.id === myId) SFX.win();

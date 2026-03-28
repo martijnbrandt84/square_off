@@ -6,7 +6,7 @@ const path = require('path');
 
 process.on('uncaughtException',  (err) => console.error('Error:', err));
 process.on('unhandledRejection', (err) => console.error('Promise error:', err));
-const SERVER_VERSION = '2026-03-28-v1';
+const SERVER_VERSION = '2026-03-28-v2';
 console.log(`[Square Off] server starting — version ${SERVER_VERSION}`);
 
 const app = express();
@@ -139,7 +139,7 @@ function createRoom(roomId, gridSize = 'medium', vsComputer = false) {
     players: [], scores: {},
     turn: null, turnCount: 0,
     status: 'waiting', vsComputer, winner: null,
-    skipNext: null, pendingExtraMove: null, bombTarget: null, razziaPenalty: false,
+    skipNext: null, pendingExtraMove: null, bombTarget: null, razziaPenalty: false, bombScoredExtra: false,
     lastActivity: Date.now(),
   };
 }
@@ -304,7 +304,7 @@ function computeBotBombTarget(room) {
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
       const cell = grid[row * size + col];
-      if (cell.owner) continue; // can only bomb unowned cells
+      if (cell.owner || cell.isKeyLocation || cell.special) continue; // can't bomb owned, bank, or special cells
 
       // Simulate removing all 4 walls of this cell
       const sim = cloneLines(lines);
@@ -390,6 +390,7 @@ function processMove(room, roomId, playerId, lineType, row, col) {
   room.razziaPenalty = false;
 
   if (room.bombTarget === playerId) {
+    if (scored) room.bombScoredExtra = true; // remember scoring bonus for after bomb resolves
     // stay — waiting for human to pick a bomb target
   } else if (razziaPenalty) {
     // Razzia: cancel scoring bonus, turn ends immediately
@@ -422,7 +423,11 @@ function scheduleBotMove(room, roomId) {
         let unclaimed = [];
         if (target) unclaimed = applyBomb(r, target.row, target.col);
         r.bombTarget = null;
-        advanceTurn(r, bot.id);
+        if (r.bombScoredExtra) {
+          r.bombScoredExtra = false; // bot keeps turn — it scored when it got the bomb
+        } else {
+          advanceTurn(r, bot.id);
+        }
         const bombUpdate = sanitizeRoom(r);
         if (target) bombUpdate.bombedCell = { row: target.row, col: target.col, unclaimed };
         io.to(roomId).emit('room-update', bombUpdate);
@@ -508,10 +513,15 @@ io.on('connection', (socket) => {
     if (!room || room.bombTarget !== socket.id) return;
     const { size } = room;
     if (row < 0 || row >= size || col < 0 || col >= size) return;
-    if (room.grid[row * size + col].owner) return;
+    const targetCell = room.grid[row * size + col];
+    if (targetCell.owner || targetCell.isKeyLocation || targetCell.special) return;
     const unclaimed = applyBomb(room, row, col);
     room.bombTarget = null;
-    advanceTurn(room, socket.id);
+    if (room.bombScoredExtra) {
+      room.bombScoredExtra = false; // keep turn — player scored when they got the bomb
+    } else {
+      advanceTurn(room, socket.id);
+    }
     const bombUpdate = sanitizeRoom(room);
     bombUpdate.bombedCell = { row, col, unclaimed };
     io.to(roomId).emit('room-update', bombUpdate);
