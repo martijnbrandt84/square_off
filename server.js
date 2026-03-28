@@ -265,23 +265,27 @@ function computeBotMove(room) {
       }
     }
   }
-  // 3. Claim any cell — prefer bribe/bomb specials (+6), avoid hitman (-10)
+  // 3. Claim any cell — prefer bribe/bomb (+6), never voluntarily take hitman
+  const isHitmanOnly = m => {
+    const cells = cellsCompletedByMove(lines, grid, size, m);
+    return cells.length > 0 && cells.every(({ row, col }) => grid[row * size + col].special?.id === 'hitman');
+  };
   const scoringMoves = moves.filter(m => cellsCompletedByMove(lines, grid, size, m).length > 0);
-  if (scoringMoves.length > 0) {
-    scoringMoves.sort((a, b) => {
+  const goodScoring  = scoringMoves.filter(m => !isHitmanOnly(m));
+  if (goodScoring.length > 0) {
+    goodScoring.sort((a, b) => {
       const spScore = (move) => {
         const cells = cellsCompletedByMove(lines, grid, size, move);
         let s = 0;
         for (const { row, col } of cells) {
           const sp = grid[row * size + col].special?.id;
           if (sp === 'bribe' || sp === 'bomb') s += 6;
-          if (sp === 'hitman') s -= 10;
         }
         return s;
       };
       return spScore(b) - spScore(a);
     });
-    return scoringMoves[0];
+    return goodScoring[0];
   }
   // 4. Safe moves (don't create 3-sided key locations for opponent)
   const safe = moves.filter(m => {
