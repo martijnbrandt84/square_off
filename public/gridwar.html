@@ -1654,8 +1654,9 @@ function openUpgradeModal(ci) {
   document.getElementById('upgDefenseDesc').textContent = UPGRADE_DESCS[b.type].defense;
 
   document.getElementById('upgOffenseBtn').onclick = () => {
+    const cell = pendingUpgradeCell;
     closeUpgradeModal();
-    applyAction(G.turn, 'upgrade', pendingUpgradeCell, 'offense');
+    applyAction(G.turn, 'upgrade', cell, 'offense');
     G.turnActed = true;
     G.action = null;
     recalc();
@@ -1664,8 +1665,9 @@ function openUpgradeModal(ci) {
   };
 
   document.getElementById('upgDefenseBtn').onclick = () => {
+    const cell = pendingUpgradeCell;
     closeUpgradeModal();
-    applyAction(G.turn, 'upgrade', pendingUpgradeCell, 'defense');
+    applyAction(G.turn, 'upgrade', cell, 'defense');
     G.turnActed = true;
     G.action = null;
     recalc();
@@ -1674,8 +1676,6 @@ function openUpgradeModal(ci) {
   };
 
   document.getElementById('upgCancelBtn').onclick = closeUpgradeModal;
-
-  modal.style.display = 'flex';
 }
 
 function closeUpgradeModal() {
