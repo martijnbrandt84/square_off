@@ -1058,11 +1058,22 @@ function getValidCellsFor(owner, action) {
       }
     }
   } else if (action === 'pulse') {
-    // Valid: any enemy building (any type, any state)
-    const enemy = owner === 'p1' ? 'p2' : 'p1';
-    for (let i = 0; i < N; i++) {
-      const b = buildingAt(i);
-      if (b && b.owner === enemy) valid.add(i);
+    // Valid only if player has an active L2 offense hub in plant range
+    const hasPulseHub = (() => {
+      for (let i = 0; i < N; i++) {
+        const b = buildingAt(i);
+        if (b && b.type === 'hub' && b.owner === owner && !b.offline && b.level >= 2 && b.upgPath === 'offense') {
+          if (inAnyPlantRange(owner, i)) return true;
+        }
+      }
+      return false;
+    })();
+    if (hasPulseHub) {
+      const enemy = owner === 'p1' ? 'p2' : 'p1';
+      for (let i = 0; i < N; i++) {
+        const b = buildingAt(i);
+        if (b && b.owner === enemy) valid.add(i);
+      }
     }
   }
   return valid;
@@ -1551,6 +1562,7 @@ function aiTurn() {
   if (bestMove.action === 'overload') {
     applyOverload(bestMove.ci).then(() => {
       if (G.status !== 'playing') return;
+      if (!G.turnActed) { G.turn = 'p1'; G.turnActed = false; G.action = null; render(); return; }
       setTimeout(() => endTurn(), 600);
     });
     return;
@@ -1559,6 +1571,7 @@ function aiTurn() {
   if (bestMove.action === 'pulse') {
     applyPulse(bestMove.ci).then(() => {
       if (G.status !== 'playing') return;
+      if (!G.turnActed) { G.turn = 'p1'; G.turnActed = false; G.action = null; render(); return; }
       setTimeout(() => endTurn(), 600);
     });
     return;
