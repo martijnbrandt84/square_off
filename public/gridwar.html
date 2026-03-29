@@ -168,14 +168,14 @@ header {
   gap: 20px;
   align-items: flex-start;
   width: 100%;
-  max-width: 960px;
+  max-width: 1000px;
 }
 
 /* BOARD */
 #board {
   display: grid;
-  grid-template-columns: repeat(5, 90px);
-  grid-template-rows: repeat(5, 90px);
+  grid-template-columns: repeat(6, 90px);
+  grid-template-rows: repeat(6, 90px);
   gap: 4px;
   flex-shrink: 0;
 }
@@ -205,6 +205,12 @@ header {
 .cell.valid { border: 2px solid #55ff88; box-shadow: 0 0 8px rgba(85,255,136,0.3); }
 .cell.valid:hover { background: rgba(85,255,136,0.08); }
 
+.cell.valid-overload { border: 2px solid #ff6400; box-shadow: 0 0 8px rgba(255,100,0,0.4); }
+.cell.valid-overload:hover { background: rgba(255,100,0,0.08); }
+
+.cell.valid-pulse { border: 2px solid #ffff00; box-shadow: 0 0 8px rgba(255,255,0,0.4); }
+.cell.valid-pulse:hover { background: rgba(255,255,0,0.08); }
+
 .cell.in-range { box-shadow: inset 0 0 0 2px rgba(255,220,0,0.35); }
 .cell.in-sabo-range { box-shadow: inset 0 0 0 2px rgba(255,80,80,0.35); }
 
@@ -218,6 +224,28 @@ header {
 .cell.bank-controlled {
   animation: bankGlow 1.8s ease-in-out infinite;
 }
+
+/* Overload flash */
+@keyframes overload-pulse {
+  0%   { box-shadow: inset 0 0 0 3px rgba(255,100,0,0.9); background: rgba(255,100,0,0.3); }
+  50%  { box-shadow: inset 0 0 0 6px rgba(255,50,0,1);    background: rgba(255,50,0,0.5); }
+  100% { box-shadow: inset 0 0 0 3px rgba(255,100,0,0.2); background: rgba(255,100,0,0.1); }
+}
+.cell.overload-flash { animation: overload-pulse 0.6s ease-in-out; }
+
+/* Pulse animations */
+@keyframes pulse-source {
+  0%   { box-shadow: inset 0 0 0 3px rgba(255,255,0,0.9); }
+  100% { box-shadow: inset 0 0 0 0px rgba(255,255,0,0); opacity: 0.2; }
+}
+.cell.pulse-source { animation: pulse-source 0.5s ease-out forwards; }
+
+@keyframes pulse-target {
+  0%   { box-shadow: inset 0 0 0 0px rgba(255,0,0,0); }
+  30%  { box-shadow: inset 0 0 0 8px rgba(255,0,0,0.9); background: rgba(255,0,0,0.4); }
+  100% { box-shadow: inset 0 0 0 2px rgba(255,0,0,0.2); }
+}
+.cell.pulse-target { animation: pulse-target 0.5s ease-out forwards; }
 
 /* Special overlay (top-right) */
 .cell-special {
@@ -243,6 +271,21 @@ header {
   pointer-events: none;
   letter-spacing: 0.5px;
 }
+
+/* Upgrade path badge */
+.upgpath-badge {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 1px 4px;
+  pointer-events: none;
+  letter-spacing: 0.5px;
+}
+.upgpath-badge.offense { background: rgba(255,100,0,0.25); color: #ff9955; }
+.upgpath-badge.defense { background: rgba(0,170,255,0.2); color: #55bbff; }
 
 /* Tooltip */
 .cell-tooltip {
@@ -425,10 +468,18 @@ header {
 }
 .action-btn:hover:not(:disabled) { background: #1a1a2e; border-color: #3a3a55; }
 .action-btn.active { border-color: #55ff88; color: #55ff88; background: rgba(85,255,136,0.07); }
+.action-btn.active-overload { border-color: #ff6400; color: #ff9944; background: rgba(255,100,0,0.07); }
+.action-btn.active-pulse { border-color: #ffff00; color: #ffff55; background: rgba(255,255,0,0.07); }
 .action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .action-btn .btn-left { display: flex; align-items: center; gap: 8px; }
 .action-btn .btn-count { font-size: 0.7rem; color: #666; }
 .action-btn.active .btn-count { color: #55ff8888; }
+
+.action-divider {
+  height: 1px;
+  background: #1a1a2e;
+  margin: 2px 0;
+}
 
 .end-turn-btn {
   background: #1a1a2e;
@@ -578,11 +629,36 @@ header {
 }
 .win-menu:hover { background: #222236; color: #ccc; }
 
+/* Upgrade modal */
+#upgradeModal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 200;
+}
+.upgrade-modal-box {
+  background: #0d0d1a; border: 1px solid #333; border-radius: 12px;
+  padding: 24px; max-width: 360px; width: 90%; text-align: center;
+}
+.upgrade-modal-title { font-family: 'Bebas Neue'; font-size: 1.4rem; letter-spacing: 2px; margin-bottom: 8px; }
+.upgrade-modal-building { font-size: 0.85rem; color: #888; margin-bottom: 20px; }
+.upgrade-modal-choices { display: flex; gap: 12px; margin-bottom: 14px; }
+.upgrade-modal-choices button {
+  flex: 1; background: #111120; border: 1px solid #333; color: #ccc;
+  padding: 14px 8px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; line-height: 1.4;
+  transition: all 0.15s;
+}
+.upgrade-modal-choices button:hover { border-color: #55ff88; color: #fff; background: #0d1f12; }
+.upgrade-modal-choices button small { display: block; margin-top: 6px; font-size: 0.7rem; color: #888; }
+#upgCancelBtn {
+  background: none; border: 1px solid #333; color: #666; padding: 6px 20px;
+  border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+}
+#upgCancelBtn:hover { color: #ccc; border-color: #555; }
+
 /* Responsive */
-@media (max-width: 700px) {
+@media (max-width: 780px) {
   .main-layout { flex-direction: column; align-items: center; }
-  .sidebar { max-width: 460px; width: 100%; }
-  #board { grid-template-columns: repeat(5, 72px); grid-template-rows: repeat(5, 72px); }
+  .sidebar { max-width: 540px; width: 100%; }
+  #board { grid-template-columns: repeat(6, 72px); grid-template-rows: repeat(6, 72px); }
   .cell { width: 72px; height: 72px; }
   .building-emoji { font-size: 22px; }
   #start-screen h1 { font-size: 3.5rem; }
@@ -594,7 +670,7 @@ header {
 <!-- ==================== START SCREEN ==================== -->
 <div id="start-screen">
   <h1>GRID WAR</h1>
-  <div class="start-subtitle">Infrastructure Control — 5×5 City Grid</div>
+  <div class="start-subtitle">Infrastructure Control — 6×6 City Grid</div>
 
   <div class="start-mode-btns">
     <button class="start-mode-btn" onclick="startGame(false)">👥 vs Player</button>
@@ -606,6 +682,8 @@ header {
     <div class="start-legend-row"><span>🏭</span><span><b>Power Plant</b> — controls surrounding cells in a radius</span></div>
     <div class="start-legend-row"><span>📡</span><span><b>Rally Tower</b> — placed adjacent to a plant, extends its range</span></div>
     <div class="start-legend-row"><span>💀</span><span><b>Sabotage Hub</b> — drains enemy building stability each turn</span></div>
+    <div class="start-legend-row"><span>⚔️</span><span><b>Offense path</b> — more range / Overload / Pulse attacks</span></div>
+    <div class="start-legend-row"><span>🛡️</span><span><b>Defense path</b> — more stability / special survival perks</span></div>
   </div>
 
   <div class="start-win-note">Win by controlling 3 of 5 🏦 banks — first to 3 wins!</div>
@@ -615,7 +693,7 @@ header {
 <div id="game-screen">
   <header>
     <h1>GRID WAR</h1>
-    <div class="subtitle">Infrastructure Control — 5×5 City Grid</div>
+    <div class="subtitle">Infrastructure Control — 6×6 City Grid</div>
     <div id="turn-indicator" class="turn-indicator p1">PLAYER 1's TURN</div>
   </header>
 
@@ -658,8 +736,10 @@ header {
         <div class="panel-title">BUILDINGS</div>
         <div class="building-legend">
           <div class="bl-row"><span>🏭</span><span><b>Power Plant</b> — controls cells in range (R1+). Limit: 3</span></div>
-          <div class="bl-row"><span>📡</span><span><b>Rally Tower</b> — extends adjacent plant range by +1. Limit: 5</span></div>
+          <div class="bl-row"><span>📡</span><span><b>Rally Tower</b> — extends adjacent plant range. Limit: 5</span></div>
           <div class="bl-row"><span>💀</span><span><b>Sabotage Hub</b> — drains enemy stability per turn. Limit: 4</span></div>
+          <div class="bl-row"><span>⚔️</span><span>Offense: more range, Overload &amp; Pulse special attacks</span></div>
+          <div class="bl-row"><span>🛡️</span><span>Defense: more max stability, Fortified / Independent / Resilient</span></div>
         </div>
       </div>
 
@@ -683,6 +763,15 @@ header {
           <button class="action-btn" id="btn-upgrade" onclick="selectAction('upgrade')">
             <span class="btn-left"><span>⬆️</span><span>Upgrade / Repair</span></span>
             <span class="btn-count" id="cnt-upgrade"></span>
+          </button>
+          <div class="action-divider"></div>
+          <button class="action-btn" id="btn-overload" onclick="selectAction('overload')" style="display:none">
+            <span class="btn-left"><span>💥</span><span>Overload</span></span>
+            <span class="btn-count" id="cnt-overload"></span>
+          </button>
+          <button class="action-btn" id="btn-pulse" onclick="selectAction('pulse')" style="display:none">
+            <span class="btn-left"><span>⚡</span><span>Pulse</span></span>
+            <span class="btn-count" id="cnt-pulse"></span>
           </button>
           <button class="end-turn-btn" id="btn-end" onclick="endTurn()">END TURN</button>
         </div>
@@ -709,28 +798,43 @@ header {
   </div>
 </div>
 
+<!-- Upgrade Path Modal -->
+<div id="upgradeModal" style="display:none">
+  <div class="upgrade-modal-box">
+    <div class="upgrade-modal-title">Choose Upgrade Path</div>
+    <div class="upgrade-modal-building" id="upgModalBuilding"></div>
+    <div class="upgrade-modal-choices">
+      <button id="upgOffenseBtn">⚔️ Offense<br><small id="upgOffenseDesc"></small></button>
+      <button id="upgDefenseBtn">🛡️ Defense<br><small id="upgDefenseDesc"></small></button>
+    </div>
+    <button id="upgCancelBtn">Cancel</button>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // CONSTANTS
 // ============================================================
-const GRID_SIZE = 5;
-const N = 25; // N_CELLS
+const GS = 6;
+const N = 36; // N_CELLS
 
-// New map: 5 banks in cross, 2 power nodes, 2 ruins
+// 6x6 map layout (row-major, 0-indexed)
 const SPECIALS = {
-  2:  { type: 'bank',  emoji: '🏦' },   // row 0, col 2
-  10: { type: 'bank',  emoji: '🏦' },   // row 2, col 0
-  12: { type: 'bank',  emoji: '🏦' },   // row 2, col 2 — center
-  14: { type: 'bank',  emoji: '🏦' },   // row 2, col 4
-  22: { type: 'bank',  emoji: '🏦' },   // row 4, col 2
-  6:  { type: 'power', emoji: '⚡' },   // row 1, col 1
-  18: { type: 'power', emoji: '⚡' },   // row 3, col 3
+  3:  { type: 'bank',  emoji: '🏦' },  // row 0, col 3
+  15: { type: 'bank',  emoji: '🏦' },  // row 2, col 3
+  17: { type: 'bank',  emoji: '🏦' },  // row 2, col 5
+  21: { type: 'bank',  emoji: '🏦' },  // row 3, col 3
+  33: { type: 'bank',  emoji: '🏦' },  // row 5, col 3
+  7:  { type: 'power', emoji: '⚡' },  // row 1, col 1
+  28: { type: 'power', emoji: '⚡' },  // row 4, col 4
   0:  { type: 'ruin',  emoji: '🏚️' }, // row 0, col 0
-  24: { type: 'ruin',  emoji: '🏚️' }, // row 4, col 4
+  5:  { type: 'ruin',  emoji: '🏚️' }, // row 0, col 5
+  30: { type: 'ruin',  emoji: '🏚️' }, // row 5, col 0
+  35: { type: 'ruin',  emoji: '🏚️' }, // row 5, col 5
 };
 
-const BANK_INDICES = [2, 10, 12, 14, 22];
-const RUIN_INDICES = [0, 24];
+const BANK_INDICES = [3, 15, 17, 21, 33];
+const RUIN_INDICES = [0, 5, 30, 35];
 const WIN_BANKS = 3; // first to 3 banks wins
 
 const DEF = {
@@ -740,19 +844,35 @@ const DEF = {
 };
 
 const HELP = {
-  plant:   '🏭 Place a Power Plant on any empty non-ruin cell. Controls cells within its range. Limit: 3 per player.',
-  tower:   '📡 Place a Rally Tower adjacent to a friendly active Power Plant. Extends that plant\'s range by +1. Limit: 5.',
-  hub:     '💀 Place a Sabotage Hub within range of a friendly active Power Plant. Drains enemy stability each turn. Limit: 4.',
-  upgrade: '⬆️ Upgrade one of your buildings (max level 2), or repair an offline building.',
-  none:    'Select an action, then click a valid cell on the board.',
+  plant:    '🏭 Place a Power Plant on any empty non-ruin cell. Controls cells within its range. Limit: 3 per player.',
+  tower:    '📡 Place a Rally Tower adjacent to a friendly active Power Plant. Extends that plant\'s range. Limit: 5.',
+  hub:      '💀 Place a Sabotage Hub within range of a friendly active Power Plant. Drains enemy stability each turn. Limit: 4.',
+  upgrade:  '⬆️ Upgrade one of your buildings (max level 2), or repair an offline building. Level 0→1 lets you choose Offense or Defense path.',
+  overload: '💥 Click your Level 2 Offense Power Plant to sacrifice it — deals −2 stability to all enemies in its range.',
+  pulse:    '⚡ Click any enemy building to instantly destroy it — sacrifices your Level 2 Offense Sabotage Hub.',
+  none:     'Select an action, then click a valid cell on the board.',
+};
+
+const UPGRADE_DESCS = {
+  plant: {
+    offense: 'Range +1 now, +1 more at L2. L2 unlocks Overload (sacrifice for shockwave).',
+    defense: 'Max stability +2 now, Fortified at L2 (can\'t drop below 1 stability per drain event).',
+  },
+  tower: {
+    offense: 'Boost +2 now (was +1). +3 at L2.',
+    defense: 'Max stability +2. Independent at L2 (no adjacent plant needed).',
+  },
+  hub: {
+    offense: 'Sabo range +1 now (radius 2). L2 unlocks Pulse (instant destroy one enemy).',
+    defense: 'Max stability +2. Resilient at L2 (survives first blackout once).',
+  },
 };
 
 // ============================================================
 // GAME STATE
 // ============================================================
-// G mirrors the spec's naming convention for easy AI use
 const G = {
-  cells: [],        // per-cell: { special: type|null, building: {type,owner,level,stability,maxStab,offline}|null }
+  cells: [],        // per-cell: { special: type|null, building: {type,owner,level,stability,maxStab,offline,upgPath,resilientUsed}|null }
   ctrl: [],         // per-cell: null | 'p1' | 'p2' | 'tie'
   turn: 'p1',
   turnActed: false,
@@ -760,17 +880,21 @@ const G = {
   status: 'idle',   // 'idle' | 'playing' | 'over'
   vsComputer: false,
   animating: false,
+  overloadCells: new Set(),
 };
 
 let hoveredCell = -1;
 let logEntries = [];
 let nextBuildingId = 0;
 
+// Upgrade modal pending state
+let pendingUpgradeCell = -1;
+
 // ============================================================
 // HELPERS — geometry
 // ============================================================
-function pos(idx) { return { r: Math.floor(idx / GRID_SIZE), c: idx % GRID_SIZE }; }
-function idx(r, c) { return r * GRID_SIZE + c; }
+function pos(i) { return { r: Math.floor(i / GS), c: i % GS }; }
+function idxRC(r, c) { return r * GS + c; }
 function mdist(a, b) {
   const pa = pos(a), pb = pos(b);
   return Math.abs(pa.r - pb.r) + Math.abs(pa.c - pb.c);
@@ -778,10 +902,10 @@ function mdist(a, b) {
 function adj(ci) {
   const { r, c } = pos(ci);
   const res = [];
-  if (r > 0) res.push(idx(r-1, c));
-  if (r < GRID_SIZE-1) res.push(idx(r+1, c));
-  if (c > 0) res.push(idx(r, c-1));
-  if (c < GRID_SIZE-1) res.push(idx(r, c+1));
+  if (r > 0)    res.push(idxRC(r-1, c));
+  if (r < GS-1) res.push(idxRC(r+1, c));
+  if (c > 0)    res.push(idxRC(r, c-1));
+  if (c < GS-1) res.push(idxRC(r, c+1));
   return res;
 }
 
@@ -799,19 +923,27 @@ function activePlants(owner) {
   return result;
 }
 
+function towerBoost(b) {
+  if (b.level === 0) return 1;
+  if (b.upgPath === 'offense') return b.level === 1 ? 2 : 3;
+  return 1; // defense upgrade doesn't improve boost
+}
+
 function plantRange(pi) {
   const b = G.cells[pi].building;
   if (!b || b.type !== 'plant' || b.offline) return 0;
-  let range = 1 + b.level;
+  let r = 1;
+  if (b.level >= 1 && b.upgPath === 'offense') r += 1;
+  if (b.level >= 2 && b.upgPath === 'offense') r += 1;
   const sp = SPECIALS[pi];
-  if (sp && sp.type === 'power') range += 1;
+  if (sp && sp.type === 'power') r += 1;
   for (const ni of adj(pi)) {
     const nb = G.cells[ni].building;
     if (nb && nb.type === 'tower' && nb.owner === b.owner && !nb.offline) {
-      range += 1 + nb.level;
+      r += towerBoost(nb);
     }
   }
-  return range;
+  return r;
 }
 
 function inAnyPlantRange(owner, ci) {
@@ -823,7 +955,9 @@ function inAnyPlantRange(owner, ci) {
 
 function saboRange(hi) {
   const b = G.cells[hi].building;
-  return b ? 1 + b.level : 1;
+  if (!b || b.type !== 'hub') return 1;
+  if (b.level >= 1 && b.upgPath === 'offense') return 2;
+  return 1;
 }
 
 function countBuildings(owner, type) {
@@ -838,6 +972,15 @@ function countBuildings(owner, type) {
 function cellName(ci) {
   const { r, c } = pos(ci);
   return `(${r+1},${c+1})`;
+}
+
+// Check if any friendly plant is alive on the board (for Independent tower)
+function anyActivePlant(owner) {
+  for (let i = 0; i < N; i++) {
+    const b = G.cells[i].building;
+    if (b && b.type === 'plant' && b.owner === owner && !b.offline) return true;
+  }
+  return false;
 }
 
 // ============================================================
@@ -898,6 +1041,21 @@ function getValidCellsFor(owner, action) {
       const b = buildingAt(i);
       if (b && b.owner === owner && b.level < 2) valid.add(i);
     }
+  } else if (action === 'overload') {
+    // Valid: own active L2 offense plants
+    for (let i = 0; i < N; i++) {
+      const b = buildingAt(i);
+      if (b && b.type === 'plant' && b.owner === owner && !b.offline && b.level >= 2 && b.upgPath === 'offense') {
+        valid.add(i);
+      }
+    }
+  } else if (action === 'pulse') {
+    // Valid: any enemy building (any type, any state)
+    const enemy = owner === 'p1' ? 'p2' : 'p1';
+    for (let i = 0; i < N; i++) {
+      const b = buildingAt(i);
+      if (b && b.owner === enemy) valid.add(i);
+    }
   }
   return valid;
 }
@@ -905,22 +1063,22 @@ function getValidCellsFor(owner, action) {
 // ============================================================
 // APPLY ACTION
 // ============================================================
-function applyAction(owner, action, ci) {
+function applyAction(owner, action, ci, upgPath) {
   if (action === 'plant') {
     const def = DEF.plant;
-    G.cells[ci].building = { id: nextBuildingId++, type: 'plant', owner, level: 0, stability: def.maxStab, maxStab: def.maxStab, offline: false };
+    G.cells[ci].building = { id: nextBuildingId++, type: 'plant', owner, level: 0, stability: def.maxStab, maxStab: def.maxStab, offline: false, upgPath: null };
     const sp = SPECIALS[ci];
     const pnBonus = sp && sp.type === 'power' ? ' (⚡ Power Node +1 range!)' : '';
     addLog(`${ownerLabel(owner)} placed 🏭 Power Plant at ${cellName(ci)}${pnBonus}.`, owner + '-event');
 
   } else if (action === 'tower') {
     const def = DEF.tower;
-    G.cells[ci].building = { id: nextBuildingId++, type: 'tower', owner, level: 0, stability: def.maxStab, maxStab: def.maxStab, offline: false };
+    G.cells[ci].building = { id: nextBuildingId++, type: 'tower', owner, level: 0, stability: def.maxStab, maxStab: def.maxStab, offline: false, upgPath: null };
     addLog(`${ownerLabel(owner)} placed 📡 Rally Tower at ${cellName(ci)}.`, owner + '-event');
 
   } else if (action === 'hub') {
     const def = DEF.hub;
-    G.cells[ci].building = { id: nextBuildingId++, type: 'hub', owner, level: 0, stability: def.maxStab, maxStab: def.maxStab, offline: false };
+    G.cells[ci].building = { id: nextBuildingId++, type: 'hub', owner, level: 0, stability: def.maxStab, maxStab: def.maxStab, offline: false, upgPath: null, resilientUsed: false };
     addLog(`${ownerLabel(owner)} placed 💀 Sabotage Hub at ${cellName(ci)}.`, owner + '-event');
 
   } else if (action === 'upgrade') {
@@ -931,11 +1089,112 @@ function applyAction(owner, action, ci) {
       b.stability = Math.ceil(b.maxStab / 2);
       addLog(`${ownerLabel(owner)} repaired ${DEF[b.type].emoji} at ${cellName(ci)} (back online, stab ${b.stability}).`, 'blackout');
     } else {
+      // upgPath is provided when upgrading from level 0 (path choice)
+      if (b.level === 0 && upgPath) {
+        b.upgPath = upgPath;
+        // Offense/defense bonuses applied on L0→L1
+        if (upgPath === 'defense') {
+          b.maxStab += 2;
+        }
+      }
       b.level += 1;
-      b.maxStab = DEF[b.type].maxStab + b.level;
+      if (b.level === 1 && b.upgPath !== 'defense') {
+        // non-defense: keep original maxStab increments
+        b.maxStab = DEF[b.type].maxStab + b.level;
+      } else if (b.level === 1 && b.upgPath === 'defense') {
+        // defense already got +2 above, just use that
+        // maxStab is already set
+      } else {
+        // level 2: defense gets no additional maxStab here (already set at L1)
+        if (b.upgPath !== 'defense') {
+          b.maxStab = DEF[b.type].maxStab + b.level;
+        }
+        // defense L2: add resilientUsed for hubs
+        if (b.type === 'hub' && b.upgPath === 'defense') {
+          b.resilientUsed = false;
+        }
+      }
       b.stability = Math.min(b.stability + 1, b.maxStab);
-      addLog(`${ownerLabel(owner)} upgraded ${DEF[b.type].emoji} at ${cellName(ci)} to level ${b.level}.`, owner + '-event');
+      const pathStr = upgPath ? ` (${upgPath === 'offense' ? '⚔️ Offense' : '🛡️ Defense'} path)` : '';
+      addLog(`${ownerLabel(owner)} upgraded ${DEF[b.type].emoji} at ${cellName(ci)} to level ${b.level}${pathStr}.`, owner + '-event');
     }
+  }
+}
+
+// ============================================================
+// STABILITY DRAIN HELPER
+// ============================================================
+function applyStabilityDrain(eb) {
+  if (eb.type === 'plant' && eb.upgPath === 'defense' && eb.level >= 2) {
+    // Fortified: can't drop below 1 per drain event
+    eb.stability = Math.max(1, eb.stability - 1);
+  } else {
+    eb.stability -= 1;
+  }
+}
+
+// ============================================================
+// BLACKOUT PROCESSING (reusable)
+// ============================================================
+async function processBlackouts() {
+  // Step 1: buildings hit 0 → go offline
+  let anyOffline = false;
+  for (let i = 0; i < N; i++) {
+    const b = buildingAt(i);
+    if (b && !b.offline && b.stability <= 0) {
+      // Check Resilient hub
+      if (b.type === 'hub' && b.upgPath === 'defense' && b.level >= 2 && !b.resilientUsed) {
+        b.stability = 1;
+        b.resilientUsed = true;
+        addLog(`💀 Sabotage Hub at ${cellName(i)} survived blackout (Resilient)!`, 'blackout');
+        render();
+        await sleep(300);
+        continue;
+      }
+      b.offline = true;
+      b.newlyOffline = true;
+      b.stability = 0;
+      anyOffline = true;
+      addLog(`⚡ BLACKOUT: ${DEF[b.type].emoji} at ${cellName(i)} (${ownerLabel(b.owner)}) goes OFFLINE!`, 'blackout');
+      render();
+      await sleep(400);
+    }
+  }
+  if (anyOffline) await sleep(300);
+
+  // Step 2: cascade — towers losing power
+  let again = true;
+  while (again) {
+    again = false;
+    for (let i = 0; i < N; i++) {
+      const b = buildingAt(i);
+      if (!b || b.offline || b.type !== 'tower') continue;
+
+      // Independent L2 defense tower: only needs any friendly active plant on board
+      if (b.upgPath === 'defense' && b.level >= 2) {
+        if (anyActivePlant(b.owner)) continue; // stays online
+      }
+
+      const hasPlant = adj(i).some(ni => {
+        const nb = buildingAt(ni);
+        return nb && nb.type === 'plant' && nb.owner === b.owner && !nb.offline;
+      });
+      if (!hasPlant) {
+        b.offline = true;
+        b.newlyOffline = true;
+        b.stability = 0;
+        again = true;
+        addLog(`📡 Rally Tower at ${cellName(i)} lost power — OFFLINE (cascade)!`, 'blackout');
+        render();
+        await sleep(350);
+      }
+    }
+  }
+
+  // Clear newlyOffline flags
+  for (let i = 0; i < N; i++) {
+    const b = buildingAt(i);
+    if (b && b.newlyOffline) b.newlyOffline = false;
   }
 }
 
@@ -954,7 +1213,7 @@ async function endTurn() {
   const owner = G.turn;
   const enemy = owner === 'p1' ? 'p2' : 'p1';
 
-  // Step 1: drain stability — show bars dropping first
+  // Step 1: drain stability via sabotage hubs
   let anyDrain = false;
   for (let hi = 0; hi < N; hi++) {
     const hub = buildingAt(hi);
@@ -964,53 +1223,22 @@ async function endTurn() {
     for (let ei = 0; ei < N; ei++) {
       const eb = buildingAt(ei);
       if (!eb || eb.owner !== enemy) continue;
-      if (mdist(hi, ei) <= sr) { eb.stability -= 1; anyDrain = true; }
+      if (mdist(hi, ei) <= sr) {
+        applyStabilityDrain(eb);
+        anyDrain = true;
+      }
     }
   }
   if (anyDrain) {
     addLog(`${ownerLabel(owner)}'s Sabotage Hubs drain enemy stability!`, 'blackout');
-    render(); // show stability bars dropping
-    await sleep(500); // let the player see the bars fall
+    render();
+    await sleep(500);
   }
 
-  // Step 2: buildings hit 0 → go offline one by one with flash
-  let anyOffline = false;
-  for (let i = 0; i < N; i++) {
-    const b = buildingAt(i);
-    if (b && !b.offline && b.stability <= 0) {
-      b.offline = true;
-      b.stability = 0;
-      anyOffline = true;
-      addLog(`⚡ BLACKOUT: ${DEF[b.type].emoji} at ${cellName(i)} (${ownerLabel(b.owner)}) goes OFFLINE!`, 'blackout');
-      render(); // triggers flash animation via CSS
-      await sleep(400); // stagger each offline building
-    }
-  }
-  if (anyOffline) await sleep(300);
+  // Process blackouts and cascades
+  await processBlackouts();
 
-  // Step 3: cascade — towers losing power, one round at a time
-  let again = true;
-  while (again) {
-    again = false;
-    for (let i = 0; i < N; i++) {
-      const b = buildingAt(i);
-      if (!b || b.offline || b.type !== 'tower') continue;
-      const hasPlant = adj(i).some(ni => {
-        const nb = buildingAt(ni);
-        return nb && nb.type === 'plant' && nb.owner === b.owner && !nb.offline;
-      });
-      if (!hasPlant) {
-        b.offline = true;
-        b.stability = 0;
-        again = true;
-        addLog(`📡 Rally Tower at ${cellName(i)} lost power — OFFLINE (cascade)!`, 'blackout');
-        render();
-        await sleep(350);
-      }
-    }
-  }
-
-  // Step 4: recalculate territory — CSS transition on cells makes it smooth
+  // Recalculate territory
   recalc();
   render();
   await sleep(200);
@@ -1026,6 +1254,124 @@ async function endTurn() {
   render();
 
   if (G.vsComputer && G.turn === 'p2') setTimeout(aiTurn, 800);
+}
+
+// ============================================================
+// OVERLOAD ACTION
+// ============================================================
+async function applyOverload(ci) {
+  G.animating = true;
+  render();
+
+  const owner = G.turn;
+  const enemy = owner === 'p1' ? 'p2' : 'p1';
+  const oldRange = plantRange(ci);
+
+  // Flash cells in range
+  G.overloadCells = new Set();
+  for (let i = 0; i < N; i++) {
+    if (mdist(ci, i) <= oldRange) G.overloadCells.add(i);
+  }
+  render(); // renders overload-flash CSS class
+  await sleep(400);
+
+  // Remove the plant
+  addLog(`${ownerLabel(owner)} 💥 Overloaded 🏭 Power Plant at ${cellName(ci)}! (range was ${oldRange})`, owner + '-event');
+  G.cells[ci].building = null;
+
+  // Deal -2 stability to all enemy buildings in range
+  for (let ei = 0; ei < N; ei++) {
+    const eb = buildingAt(ei);
+    if (!eb || eb.owner !== enemy) continue;
+    if (mdist(ci, ei) <= oldRange) {
+      applyStabilityDrain(eb);
+      applyStabilityDrain(eb); // -2 total
+      addLog(`  └ ${DEF[eb.type].emoji} at ${cellName(ei)} hit for -2 stability (now ${eb.stability}).`, 'blackout');
+    }
+  }
+
+  G.overloadCells = new Set();
+  render();
+  await sleep(400);
+
+  // Process blackouts
+  await processBlackouts();
+
+  recalc();
+  render();
+
+  G.animating = false;
+  G.turnActed = true;
+  G.action = null;
+  render();
+  checkWin();
+}
+
+// ============================================================
+// PULSE ACTION
+// ============================================================
+async function applyPulse(targetIdx) {
+  G.animating = true;
+  render();
+
+  const owner = G.turn;
+
+  // Find first active L2 offense hub
+  let pulseHubIdx = -1;
+  for (let i = 0; i < N; i++) {
+    const b = buildingAt(i);
+    if (b && b.type === 'hub' && b.owner === owner && !b.offline && b.level >= 2 && b.upgPath === 'offense') {
+      if (inAnyPlantRange(owner, i)) { pulseHubIdx = i; break; }
+    }
+  }
+  if (pulseHubIdx === -1) { G.animating = false; showToast('No active L2 Offense Hub found!'); return; }
+
+  const targetB = buildingAt(targetIdx);
+  if (!targetB) { G.animating = false; return; }
+
+  // Flash source and target
+  const hubCellEl = getBoardCellEl(pulseHubIdx);
+  const targetCellEl = getBoardCellEl(targetIdx);
+  if (hubCellEl) hubCellEl.classList.add('pulse-source');
+  if (targetCellEl) targetCellEl.classList.add('pulse-target');
+  await sleep(300);
+
+  // Remove the hub
+  addLog(`${ownerLabel(owner)} ⚡ Pulsed from 💀 Hub at ${cellName(pulseHubIdx)} → ${DEF[targetB.type].emoji} at ${cellName(targetIdx)}!`, owner + '-event');
+  G.cells[pulseHubIdx].building = null;
+
+  // Destroy or offline the target
+  if (targetB.offline) {
+    // Already offline — destroy completely
+    G.cells[targetIdx].building = null;
+    addLog(`  └ ${DEF[targetB.type].emoji} at ${cellName(targetIdx)} was already offline — destroyed!`, 'blackout');
+  } else {
+    targetB.offline = true;
+    targetB.newlyOffline = true;
+    targetB.stability = 0;
+    addLog(`  └ ${DEF[targetB.type].emoji} at ${cellName(targetIdx)} forced OFFLINE by Pulse!`, 'blackout');
+    render(); // show flash animation on target
+  }
+
+  await sleep(500);
+
+  // Process cascades
+  await processBlackouts();
+
+  recalc();
+  render();
+
+  G.animating = false;
+  G.turnActed = true;
+  G.action = null;
+  render();
+  checkWin();
+}
+
+// Helper: get current board cell DOM element by index
+function getBoardCellEl(ci) {
+  const board = document.getElementById('board');
+  return board ? board.children[ci] : null;
 }
 
 // ============================================================
@@ -1091,7 +1437,7 @@ function scoreAIMove(action, ci) {
       if (SPECIALS[i] && SPECIALS[i].type === 'bank') score += (G.ctrl[i] === enemy ? 12 : 8);
     }
     const { r, c } = pos(ci);
-    score -= (Math.abs(r - 2) + Math.abs(c - 2)) * 0.5;
+    score -= (Math.abs(r - 2.5) + Math.abs(c - 2.5)) * 0.5;
     return score;
   }
 
@@ -1100,7 +1446,6 @@ function scoreAIMove(action, ci) {
       const nb = buildingAt(ni);
       if (!nb || nb.type !== 'plant' || nb.owner !== 'p2' || nb.offline) continue;
       const oldRange = plantRange(ni);
-      // Tower not placed yet, estimate boost
       const newRange = oldRange + 1;
       let gained = 0;
       for (let i = 0; i < N; i++) {
@@ -1138,6 +1483,30 @@ function scoreAIMove(action, ci) {
     return 2;
   }
 
+  if (action === 'overload') {
+    const b = buildingAt(ci);
+    if (!b) return 0;
+    const r = plantRange(ci);
+    let score = 0;
+    for (let i = 0; i < N; i++) {
+      const eb = buildingAt(i);
+      if (!eb || eb.owner !== enemy) continue;
+      if (mdist(ci, i) <= r) {
+        const typeScore = eb.type === 'plant' ? 10 : eb.type === 'tower' ? 5 : 3;
+        score += typeScore * (eb.stability / Math.max(eb.maxStab, 1));
+      }
+    }
+    return score;
+  }
+
+  if (action === 'pulse') {
+    const b = buildingAt(ci);
+    if (!b) return 0;
+    let score = b.type === 'plant' ? 15 : b.type === 'tower' ? 8 : 4;
+    if (b.stability >= 2) score += 5; // more impactful to destroy healthy buildings
+    return score;
+  }
+
   return 0;
 }
 
@@ -1146,10 +1515,11 @@ function aiTurn() {
 
   let bestMove = null, bestScore = -Infinity;
 
-  for (const action of ['plant', 'tower', 'hub', 'upgrade']) {
+  const actionsToTry = ['plant', 'tower', 'hub', 'upgrade', 'overload', 'pulse'];
+
+  for (const action of actionsToTry) {
     const cells = getValidCellsFor('p2', action);
     if (cells.size === 0) continue;
-    // check limits
     if (action === 'plant' && countBuildings('p2', 'plant') >= DEF.plant.limit) continue;
     if (action === 'tower' && countBuildings('p2', 'tower') >= DEF.tower.limit) continue;
     if (action === 'hub' && countBuildings('p2', 'hub') >= DEF.hub.limit) continue;
@@ -1161,7 +1531,6 @@ function aiTurn() {
   }
 
   if (!bestMove) {
-    // Fallback: pass (shouldn't happen often but avoid infinite loop)
     G.turn = 'p1';
     G.turnActed = false;
     G.action = null;
@@ -1170,7 +1539,26 @@ function aiTurn() {
   }
 
   G.action = bestMove.action;
-  applyAction('p2', bestMove.action, bestMove.ci);
+
+  if (bestMove.action === 'overload') {
+    applyOverload(bestMove.ci).then(() => {
+      if (G.status !== 'playing') return;
+      setTimeout(() => endTurn(), 600);
+    });
+    return;
+  }
+
+  if (bestMove.action === 'pulse') {
+    applyPulse(bestMove.ci).then(() => {
+      if (G.status !== 'playing') return;
+      setTimeout(() => endTurn(), 600);
+    });
+    return;
+  }
+
+  // AI always picks offense path
+  const upgPath = (bestMove.action === 'upgrade') ? 'offense' : undefined;
+  applyAction('p2', bestMove.action, bestMove.ci, upgPath);
   G.turnActed = true;
   recalc();
   checkWin();
@@ -1209,18 +1597,19 @@ function initGame(vsComputer) {
   G.action = null;
   G.status = 'playing';
   G.animating = false;
+  G.overloadCells = new Set();
   hoveredCell = -1;
   logEntries = [];
   nextBuildingId = 0;
+  pendingUpgradeCell = -1;
 
-  // Update p2 label
   const p2Label = G.vsComputer ? '🤖 CPU' : '🔵 Player 2';
   document.getElementById('lbl-p2-cells').textContent = (G.vsComputer ? 'CPU' : 'P2') + ' Cells';
   document.getElementById('lbl-p2-banks').textContent = (G.vsComputer ? 'CPU' : 'P2') + ' Banks 🏦';
 
   document.getElementById('win-overlay').classList.remove('show');
+  closeUpgradeModal();
 
-  // Wire up play-again button
   document.getElementById('win-restart-btn').onclick = () => {
     document.getElementById('win-overlay').classList.remove('show');
     initGame();
@@ -1232,11 +1621,52 @@ function initGame(vsComputer) {
 }
 
 // ============================================================
+// UPGRADE PATH MODAL
+// ============================================================
+function openUpgradeModal(ci) {
+  pendingUpgradeCell = ci;
+  const b = buildingAt(ci);
+  const modal = document.getElementById('upgradeModal');
+  document.getElementById('upgModalBuilding').textContent = `${DEF[b.type].emoji} ${DEF[b.type].label} at ${cellName(ci)} — Choose path for Level 1`;
+  document.getElementById('upgOffenseDesc').textContent = UPGRADE_DESCS[b.type].offense;
+  document.getElementById('upgDefenseDesc').textContent = UPGRADE_DESCS[b.type].defense;
+
+  document.getElementById('upgOffenseBtn').onclick = () => {
+    closeUpgradeModal();
+    applyAction(G.turn, 'upgrade', pendingUpgradeCell, 'offense');
+    G.turnActed = true;
+    G.action = null;
+    recalc();
+    checkWin();
+    render();
+  };
+
+  document.getElementById('upgDefenseBtn').onclick = () => {
+    closeUpgradeModal();
+    applyAction(G.turn, 'upgrade', pendingUpgradeCell, 'defense');
+    G.turnActed = true;
+    G.action = null;
+    recalc();
+    checkWin();
+    render();
+  };
+
+  document.getElementById('upgCancelBtn').onclick = closeUpgradeModal;
+
+  modal.style.display = 'flex';
+}
+
+function closeUpgradeModal() {
+  document.getElementById('upgradeModal').style.display = 'none';
+  pendingUpgradeCell = -1;
+}
+
+// ============================================================
 // UI INTERACTION
 // ============================================================
 function selectAction(action) {
   if (G.status !== 'playing') return;
-  if (G.turn === 'p2' && G.vsComputer) return; // CPU turn
+  if (G.turn === 'p2' && G.vsComputer) return;
   if (G.turnActed) { showToast('Already acted this turn. End your turn first.'); return; }
 
   if (action === 'plant' && countBuildings(G.turn, 'plant') >= DEF.plant.limit) {
@@ -1261,12 +1691,13 @@ function onCellClick(ci) {
   if (G.turn === 'p2' && G.vsComputer) return;
   if (!G.action) { showToast('Select an action first!'); return; }
   if (G.turnActed) { showToast('Already acted this turn!'); return; }
+  if (G.animating) return;
 
   const valid = getValidCells();
   if (!valid.has(ci)) {
     const sp = SPECIALS[ci];
     if (sp && sp.type === 'ruin') { showToast('Cannot build on ruins!'); return; }
-    if (buildingAt(ci) && G.action !== 'upgrade') { showToast('Cell is already occupied!'); return; }
+    if (buildingAt(ci) && G.action !== 'upgrade' && G.action !== 'pulse') { showToast('Cell is already occupied!'); return; }
     if (G.action === 'tower') { showToast('Tower must be adjacent to a friendly active Power Plant!'); return; }
     if (G.action === 'hub') { showToast('Hub must be within range of a friendly active Power Plant!'); return; }
     if (G.action === 'upgrade') {
@@ -1275,7 +1706,36 @@ function onCellClick(ci) {
       if (b.owner !== G.turn) { showToast('Not your building!'); return; }
       if (b.level >= 2) { showToast('Already at max level!'); return; }
     }
+    if (G.action === 'overload') { showToast('Select your own L2 Offense Power Plant!'); return; }
+    if (G.action === 'pulse') { showToast('Select an enemy building to destroy!'); return; }
     showToast('Invalid cell!');
+    return;
+  }
+
+  if (G.action === 'upgrade') {
+    const b = buildingAt(ci);
+    if (b && !b.offline && b.level === 0) {
+      // Show path choice modal
+      openUpgradeModal(ci);
+      return;
+    }
+    // Level 1→2 or repair: apply directly
+    applyAction(G.turn, G.action, ci);
+    G.turnActed = true;
+    G.action = null;
+    recalc();
+    checkWin();
+    render();
+    return;
+  }
+
+  if (G.action === 'overload') {
+    applyOverload(ci);
+    return;
+  }
+
+  if (G.action === 'pulse') {
+    applyPulse(ci);
     return;
   }
 
@@ -1311,7 +1771,9 @@ function renderBoard() {
   const boardEl = document.getElementById('board');
   boardEl.innerHTML = '';
 
-  const valid = (G.action && !G.turnActed) ? getValidCells() : new Set();
+  const validSet = (G.action && !G.turnActed) ? getValidCells() : new Set();
+  const isOverload = G.action === 'overload';
+  const isPulse = G.action === 'pulse';
 
   // Hover ranges
   const hoverRangeSet = new Set();
@@ -1339,12 +1801,18 @@ function renderBoard() {
     else if (G.ctrl[i] === 'p2') cell.classList.add('ctrl-p2');
     else if (G.ctrl[i] === 'tie') cell.classList.add('ctrl-tie');
 
-    // Bank glow if controlled
     if (sp && sp.type === 'bank' && (G.ctrl[i] === 'p1' || G.ctrl[i] === 'p2')) {
       cell.classList.add('bank-controlled');
     }
 
-    if (valid.has(i)) cell.classList.add('valid');
+    if (validSet.has(i)) {
+      if (isOverload) cell.classList.add('valid-overload');
+      else if (isPulse) cell.classList.add('valid-pulse');
+      else cell.classList.add('valid');
+    }
+
+    if (G.overloadCells && G.overloadCells.has(i)) cell.classList.add('overload-flash');
+
     if (hoverRangeSet.has(i) && !hoverSaboSet.has(i)) cell.classList.add('in-range');
     if (hoverSaboSet.has(i)) cell.classList.add('in-sabo-range');
 
@@ -1368,7 +1836,8 @@ function renderBoard() {
       wrapper.className = `building-wrapper ${b.owner}`;
 
       const bDiv = document.createElement('div');
-      bDiv.className = 'building' + (b.offline ? ' offline' : '');
+      const offlineCls = b.offline ? (b.newlyOffline ? ' offline' : ' offline-instant') : '';
+      bDiv.className = 'building' + offlineCls;
 
       const emojiEl = document.createElement('div');
       emojiEl.className = 'building-emoji';
@@ -1396,6 +1865,14 @@ function renderBoard() {
       bDiv.appendChild(info);
       wrapper.appendChild(bDiv);
       cell.appendChild(wrapper);
+
+      // Upgrade path badge
+      if (b.upgPath) {
+        const pb = document.createElement('div');
+        pb.className = `upgpath-badge ${b.upgPath}`;
+        pb.textContent = b.upgPath === 'offense' ? '⚔️' : '🛡️';
+        cell.appendChild(pb);
+      }
 
       // Range badge on plants
       if (b.type === 'plant' && !b.offline) {
@@ -1444,12 +1921,14 @@ function buildTooltip(ci) {
     const ownerStr = b.owner === 'p1' ? 'P1' : (G.vsComputer ? 'CPU' : 'P2');
     let desc = `${DEF[b.type].emoji} ${DEF[b.type].label} (${ownerStr}) Lv${b.level} Stab:${b.stability}/${b.maxStab}`;
     if (b.offline) desc += ' [OFFLINE]';
+    if (b.upgPath) desc += ` [${b.upgPath === 'offense' ? '⚔️' : '🛡️'}]`;
     if (b.type === 'plant' && !b.offline) desc += ` Range:${plantRange(ci)}`;
+    if (b.type === 'hub' && !b.offline) desc += ` SaboR:${saboRange(ci)}`;
     parts.push(desc);
   }
   const ctrl = G.ctrl[ci];
   if (ctrl) parts.push(`Controlled by: ${ctrl === 'p1' ? 'P1' : (G.vsComputer ? 'CPU' : 'P2')}`);
-  return parts.join(' | ') || `Cell (${Math.floor(ci/GRID_SIZE)+1},${ci%GRID_SIZE+1})`;
+  return parts.join(' | ') || `Cell (${Math.floor(ci/GS)+1},${ci%GS+1})`;
 }
 
 function renderSidebar() {
@@ -1479,7 +1958,7 @@ function renderSidebar() {
   document.getElementById('stat-p1-banks').textContent = p1Banks;
   document.getElementById('stat-p2-banks').textContent = p2Banks;
 
-  // Bank progress bar
+  // Bank progress
   const dot = (filled) => filled ? '●' : '○';
   const p1Dots = BANK_INDICES.map(i => dot(G.ctrl[i] === 'p1')).join('');
   const p2Dots = BANK_INDICES.map(i => dot(G.ctrl[i] === 'p2')).join('');
@@ -1506,11 +1985,35 @@ function renderSidebar() {
   document.getElementById('action-buttons').style.display = isCpuTurn ? 'none' : 'flex';
 
   if (!isCpuTurn) {
-    // Action buttons
+    // Check if special actions are available
+    const hasOverload = (() => {
+      for (let i = 0; i < N; i++) {
+        const b = buildingAt(i);
+        if (b && b.type === 'plant' && b.owner === G.turn && !b.offline && b.level >= 2 && b.upgPath === 'offense') return true;
+      }
+      return false;
+    })();
+
+    const hasPulse = (() => {
+      for (let i = 0; i < N; i++) {
+        const b = buildingAt(i);
+        if (b && b.type === 'hub' && b.owner === G.turn && !b.offline && b.level >= 2 && b.upgPath === 'offense') {
+          if (inAnyPlantRange(G.turn, i)) return true;
+        }
+      }
+      return false;
+    })();
+
+    // Show/hide special action buttons
+    document.getElementById('btn-overload').style.display = hasOverload ? 'flex' : 'none';
+    document.getElementById('btn-pulse').style.display = hasPulse ? 'flex' : 'none';
+
+    // Standard action buttons
     for (const a of ['plant', 'tower', 'hub', 'upgrade']) {
       const btn = document.getElementById(`btn-${a}`);
       const cnt = document.getElementById(`cnt-${a}`);
       btn.classList.toggle('active', G.action === a);
+      btn.classList.remove('active-overload', 'active-pulse');
       let remaining = '', disabled = false;
       if (a === 'plant') {
         const used = countBuildings(G.turn, 'plant');
@@ -1533,6 +2036,22 @@ function renderSidebar() {
       cnt.textContent = remaining;
       btn.disabled = disabled || G.turnActed || G.status !== 'playing' || G.animating;
     }
+
+    // Overload button state
+    const overloadBtn = document.getElementById('btn-overload');
+    const overloadCnt = document.getElementById('cnt-overload');
+    overloadBtn.classList.remove('active', 'active-pulse');
+    overloadBtn.classList.toggle('active-overload', G.action === 'overload');
+    overloadCnt.textContent = hasOverload ? 'ready' : '';
+    overloadBtn.disabled = !hasOverload || G.turnActed || G.status !== 'playing' || G.animating;
+
+    // Pulse button state
+    const pulseBtn = document.getElementById('btn-pulse');
+    const pulseCnt = document.getElementById('cnt-pulse');
+    pulseBtn.classList.remove('active', 'active-overload');
+    pulseBtn.classList.toggle('active-pulse', G.action === 'pulse');
+    pulseCnt.textContent = hasPulse ? 'ready' : '';
+    pulseBtn.disabled = !hasPulse || G.turnActed || G.status !== 'playing' || G.animating;
 
     // End turn button
     const endBtn = document.getElementById('btn-end');
