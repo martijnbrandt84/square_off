@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid War</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #080810;
+  color: #e8e8f0;
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  user-select: none;
+}
+
+h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3rem;
+  letter-spacing: 4px;
+  background: linear-gradient(135deg, #ff2244, #00aaff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.subtitle {
+  font-size: 0.75rem;
+  color: #888;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.turn-indicator {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  padding: 4px 16px;
+  border-radius: 20px;
+  display: inline-block;
+}
+.turn-indicator.p1 { background: rgba(255,34,68,0.2); color: #ff2244; border: 1px solid rgba(255,34,68,0.4); }
+.turn-indicator.p2 { background: rgba(0,170,255,0.2); color: #00aaff; border: 1px solid rgba(0,170,255,0.4); }
+
+.main-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 960px;
+}
+
+/* BOARD */
+#board {
+  display: grid;
+  grid-template-columns: repeat(5, 90px);
+  grid-template-rows: repeat(5, 90px);
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.cell {
+  width: 90px;
+  height: 90px;
+  background: #10101e;
+  border: 1px solid #222236;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+  overflow: visible;
+}
+
+.cell:hover { border-color: #444; }
+
+.cell.ctrl-p1 { background: rgba(255,34,68,0.10); }
+.cell.ctrl-p2 { background: rgba(0,170,255,0.10); }
+.cell.ctrl-tie { background: rgba(180,100,255,0.10); }
+
+.cell.valid { border: 2px solid #55ff88; box-shadow: 0 0 8px rgba(85,255,136,0.3); }
+.cell.valid:hover { background: rgba(85,255,136,0.08); }
+
+.cell.in-range { box-shadow: inset 0 0 0 2px rgba(255,220,0,0.35); }
+.cell.in-sabo-range { box-shadow: inset 0 0 0 2px rgba(255,80,80,0.35); }
+
+.cell.ruin { cursor: not-allowed; background: #0c0c18 !important; opacity: 0.5; }
+
+/* Special overlay (top-right) */
+.cell-special {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Building display */
+.building {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+.building-emoji { font-size: 28px; line-height: 1; }
+.building-info { display: flex; align-items: center; gap: 4px; }
+
+.stability-bar {
+  width: 40px;
+  height: 5px;
+  background: #222;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.stability-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s, background 0.3s;
+}
+
+.level-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: #333;
+  border-radius: 3px;
+  padding: 0 3px;
+  line-height: 14px;
+}
+
+.building.offline {
+  filter: grayscale(100%);
+  opacity: 0.4;
+}
+
+/* Building border based on owner */
+.building-wrapper {
+  position: absolute;
+  inset: 0;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.building-wrapper.p1 { border: 2px solid rgba(255,34,68,0.6); background: rgba(255,34,68,0.05); }
+.building-wrapper.p2 { border: 2px solid rgba(0,170,255,0.6); background: rgba(0,170,255,0.05); }
+
+/* Control border along cell edge */
+.ctrl-border {
+  position: absolute;
+  inset: 0;
+  border-radius: 5px;
+  pointer-events: none;
+}
+.cell.ctrl-p1 .ctrl-border { border: 2px solid rgba(255,34,68,0.35); }
+.cell.ctrl-p2 .ctrl-border { border: 2px solid rgba(0,170,255,0.35); }
+
+/* SIDEBAR */
+.sidebar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 260px;
+  max-width: 320px;
+}
+
+.panel {
+  background: #0e0e1e;
+  border: 1px solid #222236;
+  border-radius: 8px;
+  padding: 12px;
+}
+.panel-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1rem;
+  letter-spacing: 2px;
+  color: #888;
+  margin-bottom: 8px;
+}
+
+/* Stats */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.stat-block {
+  background: #13131f;
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+}
+.stat-label { font-size: 0.65rem; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+.stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; line-height: 1.1; }
+.stat-value.p1 { color: #ff2244; }
+.stat-value.p2 { color: #00aaff; }
+
+.buildings-used {
+  font-size: 0.72rem;
+  color: #666;
+  margin-top: 6px;
+}
+.bu-row { display: flex; justify-content: space-between; margin-top: 3px; }
+.bu-p1 { color: rgba(255,34,68,0.8); }
+.bu-p2 { color: rgba(0,170,255,0.8); }
+
+/* Action buttons */
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.action-btn {
+  background: #13131f;
+  border: 1px solid #2a2a40;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #e8e8f0;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.15s, border-color 0.15s;
+  letter-spacing: 0.5px;
+}
+.action-btn:hover:not(:disabled) { background: #1a1a2e; border-color: #3a3a55; }
+.action-btn.active { border-color: #55ff88; color: #55ff88; background: rgba(85,255,136,0.07); }
+.action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.action-btn .btn-left { display: flex; align-items: center; gap: 8px; }
+.action-btn .btn-count { font-size: 0.7rem; color: #666; }
+.action-btn.active .btn-count { color: #55ff8888; }
+
+.end-turn-btn {
+  background: #1a1a2e;
+  border: 1px solid #3a3a55;
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: #e8e8f0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: 2px;
+  text-align: center;
+  margin-top: 4px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.end-turn-btn:hover { background: #222236; border-color: #55ff88; color: #55ff88; }
+.end-turn-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.help-text {
+  font-size: 0.72rem;
+  color: #666;
+  line-height: 1.5;
+  min-height: 40px;
+}
+
+/* Log */
+.log-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.log-list::-webkit-scrollbar { width: 4px; }
+.log-list::-webkit-scrollbar-track { background: transparent; }
+.log-list::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+.log-entry {
+  font-size: 0.7rem;
+  color: #888;
+  padding: 3px 6px;
+  border-radius: 3px;
+  line-height: 1.4;
+}
+.log-entry.blackout {
+  color: #ff9944;
+  font-weight: 700;
+  background: rgba(255,100,0,0.08);
+}
+.log-entry.p1-event { border-left: 2px solid rgba(255,34,68,0.5); }
+.log-entry.p2-event { border-left: 2px solid rgba(0,170,255,0.5); }
+.log-entry.system { color: #666; font-style: italic; }
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: #1a1a2e;
+  border: 1px solid #ff2244;
+  color: #ff6688;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+  z-index: 1000;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Win overlay */
+#win-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(8,8,16,0.92);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 20px;
+}
+#win-overlay.show { display: flex; }
+.win-box {
+  background: #0e0e1e;
+  border: 2px solid #333;
+  border-radius: 16px;
+  padding: 40px 60px;
+  text-align: center;
+}
+.win-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3rem;
+  letter-spacing: 4px;
+  margin-bottom: 8px;
+}
+.win-subtitle { font-size: 0.85rem; color: #888; margin-bottom: 24px; }
+.win-restart {
+  background: #1a1a2e;
+  border: 1px solid #55ff88;
+  color: #55ff88;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.2rem;
+  letter-spacing: 2px;
+  padding: 10px 30px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.win-restart:hover { background: rgba(85,255,136,0.1); }
+
+/* Responsive */
+@media (max-width: 700px) {
+  .main-layout { flex-direction: column; align-items: center; }
+  .sidebar { max-width: 460px; width: 100%; }
+  #board { grid-template-columns: repeat(5, 72px); grid-template-rows: repeat(5, 72px); }
+  .cell { width: 72px; height: 72px; }
+  .building-emoji { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GRID WAR</h1>
+  <div class="subtitle">Infrastructure Control — 5×5 City Grid</div>
+  <div id="turn-indicator" class="turn-indicator p1">PLAYER 1's TURN</div>
+</header>
+
+<div class="main-layout">
+  <div id="board"></div>
+
+  <div class="sidebar">
+    <!-- Stats -->
+    <div class="panel">
+      <div class="panel-title">CONTROL</div>
+      <div class="stats-grid">
+        <div class="stat-block">
+          <div class="stat-label">P1 Cells</div>
+          <div class="stat-value p1" id="stat-p1-cells">0</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">P2 Cells</div>
+          <div class="stat-value p2" id="stat-p2-cells">0</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">P1 Banks 🏦</div>
+          <div class="stat-value p1" id="stat-p1-banks">0</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">P2 Banks 🏦</div>
+          <div class="stat-value p2" id="stat-p2-banks">0</div>
+        </div>
+      </div>
+      <div class="buildings-used" id="buildings-used"></div>
+    </div>
+
+    <!-- Actions -->
+    <div class="panel">
+      <div class="panel-title">ACTIONS</div>
+      <div class="action-buttons">
+        <button class="action-btn" id="btn-plant" onclick="selectAction('plant')">
+          <span class="btn-left"><span>🏭</span><span>Power Plant</span></span>
+          <span class="btn-count" id="cnt-plant"></span>
+        </button>
+        <button class="action-btn" id="btn-tower" onclick="selectAction('tower')">
+          <span class="btn-left"><span>📡</span><span>Rally Tower</span></span>
+          <span class="btn-count" id="cnt-tower"></span>
+        </button>
+        <button class="action-btn" id="btn-hub" onclick="selectAction('hub')">
+          <span class="btn-left"><span>🕵️</span><span>Sabotage Hub</span></span>
+          <span class="btn-count" id="cnt-hub"></span>
+        </button>
+        <button class="action-btn" id="btn-upgrade" onclick="selectAction('upgrade')">
+          <span class="btn-left"><span>⬆️</span><span>Upgrade</span></span>
+          <span class="btn-count" id="cnt-upgrade"></span>
+        </button>
+        <button class="end-turn-btn" id="btn-end" onclick="endTurn()">END TURN</button>
+      </div>
+      <div class="help-text" id="help-text">Select an action, then click a valid cell on the board.</div>
+    </div>
+
+    <!-- Log -->
+    <div class="panel">
+      <div class="panel-title">EVENT LOG</div>
+      <ul class="log-list" id="log-list"></ul>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="win-overlay">
+  <div class="win-box">
+    <div class="win-title" id="win-title">PLAYER 1 WINS</div>
+    <div class="win-subtitle" id="win-subtitle">Controlled all 3 banks</div>
+    <button class="win-restart" onclick="initGame()">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONSTANTS
+// ============================================================
+const GRID_SIZE = 5;
+const N_CELLS = 25;
+
+// Special cells (index in row-major order)
+const SPECIALS = {
+  2:  { type: 'bank',  emoji: '🏦' },
+  10: { type: 'bank',  emoji: '🏦' },
+  22: { type: 'bank',  emoji: '🏦' },
+  6:  { type: 'power', emoji: '⚡' },
+  18: { type: 'power', emoji: '⚡' },
+  0:  { type: 'ruin',  emoji: '🏚️' },
+  14: { type: 'ruin',  emoji: '🏚️' },
+  24: { type: 'ruin',  emoji: '🏚️' },
+};
+
+const BANK_INDICES = [2, 10, 22];
+const RUIN_INDICES = [0, 14, 24];
+
+// Building limits per player
+const LIMITS = { plant: 3, tower: 5, hub: 4 };
+
+// Max stability per building type (base)
+const BASE_STABILITY = { plant: 3, tower: 2, hub: 1 };
+
+// Help texts
+const HELP = {
+  plant:   '🏭 Place a Power Plant on any empty non-ruin cell. Controls cells within its range (Manhattan dist). Limit: 3 per player.',
+  tower:   '📡 Place a Rally Tower adjacent (orthogonal) to a friendly active Power Plant. Boosts that plant\'s range. Limit: 5 per player.',
+  hub:     '🕵️ Place a Sabotage Hub within range of a friendly active Power Plant. Drains enemy stability each turn. Limit: 4 per player.',
+  upgrade: '⬆️ Upgrade one of your buildings (max level 2). Also repairs OFFLINE buildings.',
+  none:    'Select an action, then click a valid cell on the board.',
+};
+
+// ============================================================
+// STATE
+// ============================================================
+let buildings = [];   // { id, type, player, cellIdx, level, stability, maxStability, offline }
+let control = [];     // per-cell: null, 'p1', 'p2', 'tie'
+let turn = 1;         // 1 or 2
+let turnActed = false;
+let selectedAction = null;
+let hoveredCell = -1;
+let logEntries = [];
+let gameOver = false;
+let nextBuildingId = 0;
+
+function initGame() {
+  buildings = [];
+  control = new Array(N_CELLS).fill(null);
+  turn = 1;
+  turnActed = false;
+  selectedAction = null;
+  hoveredCell = -1;
+  logEntries = [];
+  gameOver = false;
+  nextBuildingId = 0;
+  document.getElementById('win-overlay').classList.remove('show');
+  addLog('Game started. Player 1 goes first.', 'system');
+  recalc();
+  render();
+}
+
+// ============================================================
+// GEOMETRY HELPERS
+// ============================================================
+function rowCol(idx) { return { r: Math.floor(idx / GRID_SIZE), c: idx % GRID_SIZE }; }
+function toIdx(r, c) { return r * GRID_SIZE + c; }
+function manhattan(a, b) {
+  const ra = rowCol(a), rb = rowCol(b);
+  return Math.abs(ra.r - rb.r) + Math.abs(ra.c - rb.c);
+}
+function orthogonalNeighbors(idx) {
+  const { r, c } = rowCol(idx);
+  const result = [];
+  if (r > 0) result.push(toIdx(r-1, c));
+  if (r < GRID_SIZE-1) result.push(toIdx(r+1, c));
+  if (c > 0) result.push(toIdx(r, c-1));
+  if (c < GRID_SIZE-1) result.push(toIdx(r, c+1));
+  return result;
+}
+
+// ============================================================
+// BUILDING QUERIES
+// ============================================================
+function getBuildingAt(cellIdx) {
+  return buildings.find(b => b.cellIdx === cellIdx) || null;
+}
+function getPlayerBuildings(player, type = null) {
+  return buildings.filter(b => b.player === player && (type ? b.type === type : true));
+}
+function activePlants(player) {
+  return buildings.filter(b => b.player === player && b.type === 'plant' && !b.offline);
+}
+
+// Plant effective range
+function plantRange(plant) {
+  if (plant.offline) return 0;
+  let range = 1 + plant.level;
+  // Power node bonus
+  const sp = SPECIALS[plant.cellIdx];
+  if (sp && sp.type === 'power') range += 1;
+  // Adjacent active friendly tower boosts
+  const neighbors = orthogonalNeighbors(plant.cellIdx);
+  for (const ni of neighbors) {
+    const b = getBuildingAt(ni);
+    if (b && b.player === plant.player && b.type === 'tower' && !b.offline) {
+      range += 1 + b.level; // base +1, level1 +2, level2 +3 → boost = 1 + level
+    }
+  }
+  return range;
+}
+
+// Find which active friendly plant a tower is "linked" to (closest orthogonal)
+function towerLinkedPlant(tower) {
+  const neighbors = orthogonalNeighbors(tower.cellIdx);
+  for (const ni of neighbors) {
+    const b = getBuildingAt(ni);
+    if (b && b.player === tower.player && b.type === 'plant' && !b.offline) return b;
+  }
+  return null;
+}
+
+// Check if a cell is within any active plant's range for a given player
+function inAnyPlantRange(player, cellIdx) {
+  for (const plant of activePlants(player)) {
+    const r = plantRange(plant);
+    if (manhattan(plant.cellIdx, cellIdx) <= r) return true;
+  }
+  return false;
+}
+
+// Sabo range for a hub (base 1, level 1: 2, but hub max level 2)
+function saboRange(hub) {
+  return 1 + hub.level; // level 0→1, level 1→2, level 2→3
+}
+
+// ============================================================
+// RECALC CONTROL
+// ============================================================
+function recalc() {
+  for (let i = 0; i < N_CELLS; i++) {
+    let p1sig = 0, p2sig = 0;
+    for (const plant of activePlants(1)) {
+      const r = plantRange(plant);
+      const dist = manhattan(plant.cellIdx, i);
+      const sig = r - dist;
+      if (sig > 0 && sig > p1sig) p1sig = sig;
+    }
+    for (const plant of activePlants(2)) {
+      const r = plantRange(plant);
+      const dist = manhattan(plant.cellIdx, i);
+      const sig = r - dist;
+      if (sig > 0 && sig > p2sig) p2sig = sig;
+    }
+    if (p1sig > 0 && p1sig > p2sig) control[i] = 'p1';
+    else if (p2sig > 0 && p2sig > p1sig) control[i] = 'p2';
+    else if (p1sig > 0 && p1sig === p2sig) control[i] = 'tie';
+    else control[i] = null;
+  }
+}
+
+// ============================================================
+// VALID CELLS COMPUTATION
+// ============================================================
+function validCells(action) {
+  const p = turn;
+  const valid = new Set();
+
+  if (action === 'plant') {
+    // Any empty non-ruin cell
+    for (let i = 0; i < N_CELLS; i++) {
+      if (!getBuildingAt(i) && !(SPECIALS[i] && SPECIALS[i].type === 'ruin')) {
+        valid.add(i);
+      }
+    }
+  } else if (action === 'tower') {
+    // Must be adjacent to a friendly active plant, cell empty, non-ruin
+    for (let i = 0; i < N_CELLS; i++) {
+      if (getBuildingAt(i)) continue;
+      if (SPECIALS[i] && SPECIALS[i].type === 'ruin') continue;
+      const neighbors = orthogonalNeighbors(i);
+      for (const ni of neighbors) {
+        const b = getBuildingAt(ni);
+        if (b && b.player === p && b.type === 'plant' && !b.offline) {
+          valid.add(i);
+          break;
+        }
+      }
+    }
+  } else if (action === 'hub') {
+    // Within range of a friendly active plant, cell empty, non-ruin
+    for (let i = 0; i < N_CELLS; i++) {
+      if (getBuildingAt(i)) continue;
+      if (SPECIALS[i] && SPECIALS[i].type === 'ruin') continue;
+      if (inAnyPlantRange(p, i)) valid.add(i);
+    }
+  } else if (action === 'upgrade') {
+    // Any friendly building that is not level 2
+    for (const b of buildings) {
+      if (b.player === p && b.level < 2) valid.add(b.cellIdx);
+    }
+  }
+
+  return valid;
+}
+
+// ============================================================
+// APPLY ACTION
+// ============================================================
+function applyAction(action, cellIdx) {
+  const p = turn;
+
+  if (action === 'plant') {
+    const maxStab = BASE_STABILITY.plant;
+    const b = { id: nextBuildingId++, type: 'plant', player: p, cellIdx, level: 0, stability: maxStab, maxStability: maxStab, offline: false };
+    buildings.push(b);
+    const sp = SPECIALS[cellIdx];
+    const pnBonus = sp && sp.type === 'power' ? ' (⚡ Power Node +1 range!)' : '';
+    addLog(`P${p} placed 🏭 Power Plant at ${cellName(cellIdx)}${pnBonus}.`, p === 1 ? 'p1-event' : 'p2-event');
+  } else if (action === 'tower') {
+    const maxStab = BASE_STABILITY.tower;
+    const b = { id: nextBuildingId++, type: 'tower', player: p, cellIdx, level: 0, stability: maxStab, maxStability: maxStab, offline: false };
+    buildings.push(b);
+    addLog(`P${p} placed 📡 Rally Tower at ${cellName(cellIdx)}.`, p === 1 ? 'p1-event' : 'p2-event');
+  } else if (action === 'hub') {
+    const maxStab = BASE_STABILITY.hub;
+    const b = { id: nextBuildingId++, type: 'hub', player: p, cellIdx, level: 0, stability: maxStab, maxStability: maxStab, offline: false };
+    buildings.push(b);
+    addLog(`P${p} placed 🕵️ Sabotage Hub at ${cellName(cellIdx)}.`, p === 1 ? 'p1-event' : 'p2-event');
+  } else if (action === 'upgrade') {
+    const b = getBuildingAt(cellIdx);
+    if (!b) return;
+    if (b.offline) {
+      // Repair: restore partial stability, set online
+      b.offline = false;
+      b.stability = Math.ceil(b.maxStability / 2);
+      addLog(`P${p} repaired ${typeEmoji(b.type)} at ${cellName(cellIdx)} (back online, stability ${b.stability}).`, 'blackout');
+    } else {
+      b.level += 1;
+      b.maxStability = BASE_STABILITY[b.type] + b.level;
+      b.stability = Math.min(b.stability + 1, b.maxStability);
+      addLog(`P${p} upgraded ${typeEmoji(b.type)} at ${cellName(cellIdx)} to level ${b.level}.`, p === 1 ? 'p1-event' : 'p2-event');
+    }
+  }
+
+  recalc();
+}
+
+// ============================================================
+// END TURN — STABILITY DRAIN + CASCADE
+// ============================================================
+function endTurn() {
+  if (gameOver) return;
+  if (!turnActed) {
+    showToast('You must take an action before ending your turn!');
+    return;
+  }
+
+  const enemy = turn === 1 ? 2 : 1;
+
+  // 1. Each active friendly hub drains enemy buildings in saboRange
+  const activeHubs = buildings.filter(b => b.player === turn && b.type === 'hub' && !b.offline && inAnyPlantRange(b.player, b.cellIdx));
+  let anyDrain = false;
+
+  for (const hub of activeHubs) {
+    const sr = saboRange(hub);
+    for (const eb of buildings) {
+      if (eb.player !== enemy) continue;
+      if (manhattan(hub.cellIdx, eb.cellIdx) <= sr) {
+        eb.stability -= 1;
+        anyDrain = true;
+      }
+    }
+  }
+
+  if (anyDrain) {
+    addLog(`P${turn}'s Sabotage Hubs drain enemy stability!`, 'blackout');
+  }
+
+  // 2. Check offline due to stability ≤ 0
+  let newOfflines = [];
+  for (const b of buildings) {
+    if (!b.offline && b.stability <= 0) {
+      b.offline = true;
+      b.stability = 0;
+      newOfflines.push(b);
+      addLog(`💥 ${typeEmoji(b.type)} at ${cellName(b.cellIdx)} (P${b.player}) goes OFFLINE!`, 'blackout');
+    }
+  }
+
+  // 3. Cascade: towers whose linked plant went offline also go offline
+  let cascadeAgain = true;
+  while (cascadeAgain) {
+    cascadeAgain = false;
+    for (const b of buildings) {
+      if (b.offline || b.type !== 'tower') continue;
+      const linkedPlant = towerLinkedPlant(b);
+      if (!linkedPlant) {
+        // No adjacent active plant anymore → go offline
+        b.offline = true;
+        b.stability = 0;
+        addLog(`📡 Rally Tower at ${cellName(b.cellIdx)} (P${b.player}) goes OFFLINE (cascade)!`, 'blackout');
+        cascadeAgain = true;
+      }
+    }
+  }
+
+  recalc();
+
+  // 4. Check win conditions
+  if (checkWin()) return;
+
+  // 5. Check end-by-buildings
+  checkBuildingExhaustion();
+  if (gameOver) return;
+
+  // 6. Advance turn
+  turn = turn === 1 ? 2 : 1;
+  turnActed = false;
+  selectedAction = null;
+  render();
+}
+
+// ============================================================
+// WIN CHECK
+// ============================================================
+function checkWin() {
+  const p1Banks = BANK_INDICES.filter(i => control[i] === 'p1').length;
+  const p2Banks = BANK_INDICES.filter(i => control[i] === 'p2').length;
+  const p1Cells = control.filter(c => c === 'p1').length;
+  const p2Cells = control.filter(c => c === 'p2').length;
+
+  if (p1Banks === 3) { showWin(1, 'Controlled all 3 banks!'); return true; }
+  if (p2Banks === 3) { showWin(2, 'Controlled all 3 banks!'); return true; }
+  if (p1Cells >= 15) { showWin(1, `Controlled ${p1Cells}/25 cells!`); return true; }
+  if (p2Cells >= 15) { showWin(2, `Controlled ${p2Cells}/25 cells!`); return true; }
+  return false;
+}
+
+function checkBuildingExhaustion() {
+  // Check if both players have used all 12 buildings (3+5+4)
+  const p1Used = getPlayerBuildings(1).length;
+  const p2Used = getPlayerBuildings(2).length;
+  if (p1Used >= 12 && p2Used >= 12) {
+    const p1Cells = control.filter(c => c === 'p1').length;
+    const p2Cells = control.filter(c => c === 'p2').length;
+    if (p1Cells > p2Cells) showWin(1, `Most cells: ${p1Cells} vs ${p2Cells}`);
+    else if (p2Cells > p1Cells) showWin(2, `Most cells: ${p2Cells} vs ${p1Cells}`);
+    else showWin(0, `Tie! Both control ${p1Cells} cells`);
+  }
+}
+
+function showWin(player, reason) {
+  gameOver = true;
+  render();
+  const overlay = document.getElementById('win-overlay');
+  const title = document.getElementById('win-title');
+  const sub = document.getElementById('win-subtitle');
+  if (player === 0) {
+    title.textContent = "IT'S A TIE!";
+    title.style.color = '#aaa';
+  } else {
+    title.textContent = `PLAYER ${player} WINS`;
+    title.style.color = player === 1 ? '#ff2244' : '#00aaff';
+  }
+  sub.textContent = reason;
+  overlay.classList.add('show');
+}
+
+// ============================================================
+// UI INTERACTION
+// ============================================================
+function selectAction(action) {
+  if (gameOver) return;
+  if (turnActed) {
+    showToast('Already acted this turn. End your turn first.');
+    return;
+  }
+  const p = turn;
+
+  // Validate enough buildings
+  if (action === 'plant' && getPlayerBuildings(p, 'plant').length >= LIMITS.plant) {
+    showToast('Plant limit reached (3)!'); return;
+  }
+  if (action === 'tower' && getPlayerBuildings(p, 'tower').length >= LIMITS.tower) {
+    showToast('Tower limit reached (5)!'); return;
+  }
+  if (action === 'hub' && getPlayerBuildings(p, 'hub').length >= LIMITS.hub) {
+    showToast('Hub limit reached (4)!'); return;
+  }
+
+  const cells = validCells(action);
+  if (cells.size === 0) {
+    showToast('No valid cells for this action!');
+    return;
+  }
+
+  selectedAction = selectedAction === action ? null : action;
+  render();
+}
+
+function onCellClick(cellIdx) {
+  if (gameOver) return;
+  if (!selectedAction) { showToast('Select an action first!'); return; }
+  if (turnActed) { showToast('Already acted this turn!'); return; }
+
+  const valid = validCells(selectedAction);
+  if (!valid.has(cellIdx)) {
+    // Give specific reason
+    const sp = SPECIALS[cellIdx];
+    if (sp && sp.type === 'ruin') { showToast('Cannot build on ruins!'); return; }
+    if (getBuildingAt(cellIdx) && selectedAction !== 'upgrade') { showToast('Cell is already occupied!'); return; }
+    if (selectedAction === 'tower') {
+      showToast('Tower must be adjacent to a friendly active Power Plant!'); return;
+    }
+    if (selectedAction === 'hub') {
+      showToast('Hub must be within range of a friendly active Power Plant!'); return;
+    }
+    if (selectedAction === 'upgrade') {
+      const b = getBuildingAt(cellIdx);
+      if (!b) { showToast('No building here!'); return; }
+      if (b.player !== turn) { showToast('Not your building!'); return; }
+      if (b.level >= 2) { showToast('Already at max level!'); return; }
+      showToast('Cannot upgrade this building.'); return;
+    }
+    showToast('Invalid cell!');
+    return;
+  }
+
+  applyAction(selectedAction, cellIdx);
+  turnActed = true;
+  selectedAction = null;
+  render();
+}
+
+function onCellHover(cellIdx) {
+  if (hoveredCell === cellIdx) return;
+  hoveredCell = cellIdx;
+  renderBoard();
+}
+
+function onCellLeave() {
+  if (hoveredCell === -1) return;
+  hoveredCell = -1;
+  renderBoard();
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function render() {
+  renderBoard();
+  renderSidebar();
+  renderLog();
+}
+
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  // We rebuild cells each render for simplicity
+  boardEl.innerHTML = '';
+
+  const valid = selectedAction && !turnActed ? validCells(selectedAction) : new Set();
+
+  // Compute hover ranges
+  const hoverRangeSet = new Set();
+  const hoverSaboSet = new Set();
+
+  if (hoveredCell >= 0) {
+    const b = getBuildingAt(hoveredCell);
+    if (b && b.type === 'plant' && !b.offline) {
+      const r = plantRange(b);
+      for (let i = 0; i < N_CELLS; i++) {
+        if (manhattan(b.cellIdx, i) <= r) hoverRangeSet.add(i);
+      }
+    }
+    if (b && b.type === 'hub' && !b.offline && inAnyPlantRange(b.player, b.cellIdx)) {
+      const sr = saboRange(b);
+      for (let i = 0; i < N_CELLS; i++) {
+        if (manhattan(b.cellIdx, i) <= sr) hoverSaboSet.add(i);
+      }
+    }
+  }
+
+  for (let i = 0; i < N_CELLS; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+
+    const sp = SPECIALS[i];
+    if (sp && sp.type === 'ruin') cell.classList.add('ruin');
+
+    // Control tint
+    if (control[i] === 'p1') cell.classList.add('ctrl-p1');
+    else if (control[i] === 'p2') cell.classList.add('ctrl-p2');
+    else if (control[i] === 'tie') cell.classList.add('ctrl-tie');
+
+    // Valid highlight
+    if (valid.has(i)) cell.classList.add('valid');
+
+    // Hover range
+    if (hoverRangeSet.has(i) && !hoverSaboSet.has(i)) cell.classList.add('in-range');
+    if (hoverSaboSet.has(i)) cell.classList.add('in-sabo-range');
+
+    // Control border
+    const cb = document.createElement('div');
+    cb.className = 'ctrl-border';
+    cell.appendChild(cb);
+
+    // Special overlay
+    if (sp && sp.type !== 'ruin') {
+      const spEl = document.createElement('div');
+      spEl.className = 'cell-special';
+      spEl.textContent = sp.emoji;
+      cell.appendChild(spEl);
+    }
+
+    // Building
+    const b = getBuildingAt(i);
+    if (b) {
+      const wrapper = document.createElement('div');
+      wrapper.className = `building-wrapper ${b.player === 1 ? 'p1' : 'p2'}`;
+
+      const bDiv = document.createElement('div');
+      bDiv.className = 'building' + (b.offline ? ' offline' : '');
+
+      const emoji = document.createElement('div');
+      emoji.className = 'building-emoji';
+      emoji.textContent = typeEmoji(b.type);
+      bDiv.appendChild(emoji);
+
+      const info = document.createElement('div');
+      info.className = 'building-info';
+
+      // Stability bar
+      const sbar = document.createElement('div');
+      sbar.className = 'stability-bar';
+      const sfill = document.createElement('div');
+      sfill.className = 'stability-fill';
+      const pct = b.maxStability > 0 ? (b.stability / b.maxStability) * 100 : 0;
+      sfill.style.width = pct + '%';
+      // Color: green → yellow → red
+      if (pct > 60) sfill.style.background = '#44cc66';
+      else if (pct > 30) sfill.style.background = '#ffcc00';
+      else sfill.style.background = '#ff3344';
+      sbar.appendChild(sfill);
+      info.appendChild(sbar);
+
+      // Level badge
+      const lbadge = document.createElement('div');
+      lbadge.className = 'level-badge';
+      lbadge.textContent = `L${b.level}`;
+      info.appendChild(lbadge);
+
+      bDiv.appendChild(info);
+      wrapper.appendChild(bDiv);
+      cell.appendChild(wrapper);
+    }
+
+    // Ruin emoji shown in cell
+    if (sp && sp.type === 'ruin') {
+      const ruinEl = document.createElement('div');
+      ruinEl.style.cssText = 'font-size:24px; pointer-events:none;';
+      ruinEl.textContent = sp.emoji;
+      cell.appendChild(ruinEl);
+    }
+
+    // Events
+    if (!(sp && sp.type === 'ruin')) {
+      cell.addEventListener('click', () => onCellClick(i));
+      cell.addEventListener('mouseenter', () => onCellHover(i));
+      cell.addEventListener('mouseleave', onCellLeave);
+    }
+
+    boardEl.appendChild(cell);
+  }
+}
+
+function renderSidebar() {
+  const p = turn;
+
+  // Turn indicator
+  const ti = document.getElementById('turn-indicator');
+  ti.textContent = gameOver ? 'GAME OVER' : `PLAYER ${turn}'S TURN`;
+  ti.className = `turn-indicator p${turn}`;
+
+  // Stats
+  const p1Cells = control.filter(c => c === 'p1').length;
+  const p2Cells = control.filter(c => c === 'p2').length;
+  const p1Banks = BANK_INDICES.filter(i => control[i] === 'p1').length;
+  const p2Banks = BANK_INDICES.filter(i => control[i] === 'p2').length;
+  document.getElementById('stat-p1-cells').textContent = p1Cells;
+  document.getElementById('stat-p2-cells').textContent = p2Cells;
+  document.getElementById('stat-p1-banks').textContent = p1Banks;
+  document.getElementById('stat-p2-banks').textContent = p2Banks;
+
+  // Buildings used
+  const buEl = document.getElementById('buildings-used');
+  const fmt = (player) => {
+    const pl = getPlayerBuildings(player, 'plant').length;
+    const tw = getPlayerBuildings(player, 'tower').length;
+    const hb = getPlayerBuildings(player, 'hub').length;
+    return `🏭${pl}/${LIMITS.plant} 📡${tw}/${LIMITS.tower} 🕵️${hb}/${LIMITS.hub}`;
+  };
+  buEl.innerHTML = `
+    <div class="bu-row"><span class="bu-p1">P1: ${fmt(1)}</span></div>
+    <div class="bu-row"><span class="bu-p2">P2: ${fmt(2)}</span></div>
+  `;
+
+  // Action buttons
+  const actions = ['plant', 'tower', 'hub', 'upgrade'];
+  for (const a of actions) {
+    const btn = document.getElementById(`btn-${a}`);
+    const cnt = document.getElementById(`cnt-${a}`);
+
+    btn.classList.toggle('active', selectedAction === a);
+
+    let remaining = '';
+    let disabled = false;
+
+    if (a === 'plant') {
+      const used = getPlayerBuildings(p, 'plant').length;
+      remaining = `${LIMITS.plant - used} left`;
+      disabled = used >= LIMITS.plant;
+    } else if (a === 'tower') {
+      const used = getPlayerBuildings(p, 'tower').length;
+      remaining = `${LIMITS.tower - used} left`;
+      disabled = used >= LIMITS.tower;
+    } else if (a === 'hub') {
+      const used = getPlayerBuildings(p, 'hub').length;
+      remaining = `${LIMITS.hub - used} left`;
+      disabled = used >= LIMITS.hub;
+    } else if (a === 'upgrade') {
+      const upgradeable = getPlayerBuildings(p).filter(b => b.level < 2).length;
+      remaining = `${upgradeable} avail`;
+      disabled = upgradeable === 0;
+    }
+
+    cnt.textContent = remaining;
+    btn.disabled = disabled || turnActed || gameOver;
+  }
+
+  // End turn button
+  const endBtn = document.getElementById('btn-end');
+  endBtn.disabled = !turnActed || gameOver;
+
+  // Help text
+  const helpEl = document.getElementById('help-text');
+  helpEl.textContent = HELP[selectedAction || 'none'];
+}
+
+function renderLog() {
+  const list = document.getElementById('log-list');
+  list.innerHTML = '';
+  const recent = logEntries.slice(-12);
+  for (const entry of recent) {
+    const li = document.createElement('li');
+    li.className = `log-entry ${entry.cls}`;
+    li.textContent = entry.msg;
+    list.appendChild(li);
+  }
+  list.scrollTop = list.scrollHeight;
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function typeEmoji(type) {
+  if (type === 'plant') return '🏭';
+  if (type === 'tower') return '📡';
+  if (type === 'hub') return '🕵️';
+  return '?';
+}
+
+function cellName(idx) {
+  const { r, c } = rowCol(idx);
+  return `(${r+1},${c+1})`;
+}
+
+function addLog(msg, cls = '') {
+  logEntries.push({ msg, cls });
+  if (logEntries.length > 100) logEntries.shift();
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ============================================================
+// START
+// ============================================================
+initGame();
+</script>
+</body>
+</html>
