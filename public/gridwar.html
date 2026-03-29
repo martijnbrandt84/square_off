@@ -192,7 +192,7 @@ header {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.7s, border-color 0.7s;
   overflow: visible;
 }
 
@@ -297,9 +297,18 @@ header {
   line-height: 14px;
 }
 
+@keyframes blackout-flash {
+  0%   { filter: brightness(4) saturate(0); opacity: 1; }
+  20%  { filter: brightness(2) saturate(0); opacity: 0.9; }
+  60%  { filter: grayscale(80%);            opacity: 0.6; }
+  100% { filter: grayscale(100%);           opacity: 0.35; }
+}
 .building.offline {
+  animation: blackout-flash 0.8s ease-out forwards;
+}
+.building.offline-instant {
   filter: grayscale(100%);
-  opacity: 0.4;
+  opacity: 0.35;
 }
 
 /* Building border based on owner */
@@ -750,6 +759,7 @@ const G = {
   action: null,
   status: 'idle',   // 'idle' | 'playing' | 'over'
   vsComputer: false,
+  animating: false,
 };
 
 let hoveredCell = -1;
@@ -930,19 +940,21 @@ function applyAction(owner, action, ci) {
 }
 
 // ============================================================
-// END TURN — drain + cascade + advance
+// END TURN — animated drain + cascade + advance
 // ============================================================
-function endTurn() {
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function endTurn() {
   if (G.status !== 'playing') return;
-  if (!G.turnActed) {
-    showToast('You must take an action before ending your turn!');
-    return;
-  }
+  if (!G.turnActed) { showToast('You must take an action before ending your turn!'); return; }
+
+  G.animating = true;
+  render();
 
   const owner = G.turn;
   const enemy = owner === 'p1' ? 'p2' : 'p1';
 
-  // 1. Active hubs drain enemy buildings
+  // Step 1: drain stability — show bars dropping first
   let anyDrain = false;
   for (let hi = 0; hi < N; hi++) {
     const hub = buildingAt(hi);
@@ -955,19 +967,28 @@ function endTurn() {
       if (mdist(hi, ei) <= sr) { eb.stability -= 1; anyDrain = true; }
     }
   }
-  if (anyDrain) addLog(`${ownerLabel(owner)}'s Sabotage Hubs drain enemy stability!`, 'blackout');
+  if (anyDrain) {
+    addLog(`${ownerLabel(owner)}'s Sabotage Hubs drain enemy stability!`, 'blackout');
+    render(); // show stability bars dropping
+    await sleep(500); // let the player see the bars fall
+  }
 
-  // 2. Go offline at 0 stability
+  // Step 2: buildings hit 0 → go offline one by one with flash
+  let anyOffline = false;
   for (let i = 0; i < N; i++) {
     const b = buildingAt(i);
     if (b && !b.offline && b.stability <= 0) {
       b.offline = true;
       b.stability = 0;
-      addLog(`💥 ${DEF[b.type].emoji} at ${cellName(i)} (${ownerLabel(b.owner)}) goes OFFLINE!`, 'blackout');
+      anyOffline = true;
+      addLog(`⚡ BLACKOUT: ${DEF[b.type].emoji} at ${cellName(i)} (${ownerLabel(b.owner)}) goes OFFLINE!`, 'blackout');
+      render(); // triggers flash animation via CSS
+      await sleep(400); // stagger each offline building
     }
   }
+  if (anyOffline) await sleep(300);
 
-  // 3. Cascade: towers without an adjacent active plant go offline
+  // Step 3: cascade — towers losing power, one round at a time
   let again = true;
   while (again) {
     again = false;
@@ -981,27 +1002,30 @@ function endTurn() {
       if (!hasPlant) {
         b.offline = true;
         b.stability = 0;
-        addLog(`📡 Rally Tower at ${cellName(i)} (${ownerLabel(b.owner)}) goes OFFLINE (cascade)!`, 'blackout');
         again = true;
+        addLog(`📡 Rally Tower at ${cellName(i)} lost power — OFFLINE (cascade)!`, 'blackout');
+        render();
+        await sleep(350);
       }
     }
   }
 
+  // Step 4: recalculate territory — CSS transition on cells makes it smooth
   recalc();
+  render();
+  await sleep(200);
+
+  G.animating = false;
   if (checkWin()) return;
   checkBuildingExhaustion();
   if (G.status === 'over') return;
 
-  // Advance turn
   G.turn = enemy;
   G.turnActed = false;
   G.action = null;
   render();
 
-  // CPU turn?
-  if (G.vsComputer && G.turn === 'p2') {
-    setTimeout(aiTurn, 800);
-  }
+  if (G.vsComputer && G.turn === 'p2') setTimeout(aiTurn, 800);
 }
 
 // ============================================================
@@ -1184,6 +1208,7 @@ function initGame(vsComputer) {
   G.turnActed = false;
   G.action = null;
   G.status = 'playing';
+  G.animating = false;
   hoveredCell = -1;
   logEntries = [];
   nextBuildingId = 0;
@@ -1506,13 +1531,15 @@ function renderSidebar() {
         disabled = cnt2 === 0;
       }
       cnt.textContent = remaining;
-      btn.disabled = disabled || G.turnActed || G.status !== 'playing';
+      btn.disabled = disabled || G.turnActed || G.status !== 'playing' || G.animating;
     }
 
     // End turn button
     const endBtn = document.getElementById('btn-end');
-    endBtn.disabled = !G.turnActed || G.status !== 'playing';
-    endBtn.classList.toggle('ready', G.turnActed && G.status === 'playing');
+    endBtn.disabled = !G.turnActed || G.status !== 'playing' || G.animating;
+    endBtn.classList.toggle('ready', G.turnActed && G.status === 'playing' && !G.animating);
+    if (G.animating) endBtn.textContent = '⚡ BLACKOUT…';
+    else endBtn.textContent = 'END TURN';
 
     // Help text
     const helpEl = document.getElementById('help-text');
