@@ -43,25 +43,25 @@ NOAA_TOKEN = load_noaa_token()
 # NOAA GHCND station-IDs: dezelfde officiële weerstation-data als Kalshi gebruikt.
 CITIES = [
     {"name": "New York",     "lat": 40.7128,  "lon": -74.0060,  "tz": "America/New_York",
-     "noaa": "GHCND:USW00094728", "noaa_label": "Central Park",         "kalshi": "HIGHNY"},
+     "noaa": "GHCND:USW00094728", "noaa_label": "Central Park",         "kalshi": "HIGHNY",     "polymarket": "nyc"},
     {"name": "Los Angeles",  "lat": 34.0522,  "lon": -118.2437, "tz": "America/Los_Angeles",
-     "noaa": "GHCND:USW00023174", "noaa_label": "LAX Airport",           "kalshi": "KXHIGHLAX"},
+     "noaa": "GHCND:USW00023174", "noaa_label": "LAX Airport",           "kalshi": "KXHIGHLAX", "polymarket": "los-angeles"},
     {"name": "Chicago",      "lat": 41.8781,  "lon": -87.6298,  "tz": "America/Chicago",
-     "noaa": "GHCND:USW00094846", "noaa_label": "O'Hare Airport",        "kalshi": "HIGHCHI"},
+     "noaa": "GHCND:USW00094846", "noaa_label": "O'Hare Airport",        "kalshi": "HIGHCHI",   "polymarket": "chicago"},
     {"name": "Houston",      "lat": 29.7604,  "lon": -95.3698,  "tz": "America/Chicago",
-     "noaa": "GHCND:USW00012960", "noaa_label": "Houston Hobby",         "kalshi": None},
+     "noaa": "GHCND:USW00012960", "noaa_label": "Houston Hobby",         "kalshi": None,        "polymarket": "houston"},
     {"name": "Phoenix",      "lat": 33.4484,  "lon": -112.0740, "tz": "America/Phoenix",
-     "noaa": "GHCND:USW00023183", "noaa_label": "Phoenix Sky Harbor",    "kalshi": None},
+     "noaa": "GHCND:USW00023183", "noaa_label": "Phoenix Sky Harbor",    "kalshi": None,        "polymarket": None},
     {"name": "Philadelphia", "lat": 39.9526,  "lon": -75.1652,  "tz": "America/New_York",
-     "noaa": "GHCND:USW00013739", "noaa_label": "Philadelphia Intl",     "kalshi": None},
+     "noaa": "GHCND:USW00013739", "noaa_label": "Philadelphia Intl",     "kalshi": None,        "polymarket": None},
     {"name": "San Antonio",  "lat": 29.4241,  "lon": -98.4936,  "tz": "America/Chicago",
-     "noaa": "GHCND:USW00012921", "noaa_label": "San Antonio Intl",      "kalshi": None},
+     "noaa": "GHCND:USW00012921", "noaa_label": "San Antonio Intl",      "kalshi": None,        "polymarket": None},
     {"name": "San Diego",    "lat": 32.7157,  "lon": -117.1611, "tz": "America/Los_Angeles",
-     "noaa": "GHCND:USW00023188", "noaa_label": "San Diego Intl",        "kalshi": None},
+     "noaa": "GHCND:USW00023188", "noaa_label": "San Diego Intl",        "kalshi": None,        "polymarket": None},
     {"name": "Dallas",       "lat": 32.7767,  "lon": -96.7970,  "tz": "America/Chicago",
-     "noaa": "GHCND:USW00013960", "noaa_label": "DFW Airport",           "kalshi": None},
+     "noaa": "GHCND:USW00013960", "noaa_label": "DFW Airport",           "kalshi": None,        "polymarket": "dallas"},
     {"name": "San Jose",     "lat": 37.3382,  "lon": -121.8863, "tz": "America/Los_Angeles",
-     "noaa": "GHCND:USW00023293", "noaa_label": "San Jose Intl",         "kalshi": None},
+     "noaa": "GHCND:USW00023293", "noaa_label": "San Jose Intl",         "kalshi": None,        "polymarket": None},
 ]
 
 TRAIN_UNTIL   = "2021-12-31"
@@ -391,47 +391,80 @@ def fetch_kalshi_markets(kalshi_ticker, target_date):
     except Exception:
         return []
 
-def fetch_polymarket_markets(city_name, target_date):
+def fetch_polymarket_markets(city_slug, target_date):
+    """Fetch Polymarket range markets and convert to cumulative P(temp >= T) values.
+
+    Slug pattern: highest-temperature-in-{city_slug}-on-{month}-{day}-{year}
+    e.g. highest-temperature-in-nyc-on-april-6-2026
+    """
+    if not city_slug:
+        return []
+    month = target_date.strftime("%B").lower()
+    day   = str(target_date.day)   # no leading zero
+    year  = target_date.year
+    slug  = f"highest-temperature-in-{city_slug}-on-{month}-{day}-{year}"
+    url   = f"https://polymarket.com/event/{slug}"
     try:
         r = requests.get(
-            "https://gamma-api.polymarket.com/markets",
-            params={"active": "true", "limit": 500, "q": f"{city_name} temperature"},
+            "https://gamma-api.polymarket.com/events",
+            params={"slug": slug},
             headers={"User-Agent": "TempForecast/1.0"},
             timeout=10,
         )
         if r.status_code != 200:
             return []
-        city_lower = city_name.lower().split()[0]
-        date_str   = target_date.strftime("%B %-d").lower()
-        result     = []
-        for m in r.json():
-            q = m.get("question", "").lower()
-            if city_lower not in q or date_str not in q:
+        events = r.json()
+        if not events:
+            return []
+        markets = events[0].get("markets", [])
+
+        # Parse each range market: "47°F or below", "48-49°F", "66°F or higher"
+        ranges = []
+        for m in markets:
+            title  = m.get("groupItemTitle", "") or m.get("question", "")
+            prices = m.get("outcomePrices", [])
+            if isinstance(prices, str):
+                prices = json.loads(prices)
+            if len(prices) < 1:
                 continue
-            if not any(kw in q for kw in ["temperature","degrees","°f","high temp"]):
-                continue
-            outcomes = m.get("outcomes", [])
-            prices   = m.get("outcomePrices", [])
-            if len(outcomes) < 2 or len(prices) < 2:
-                continue
-            try:
-                yi    = next(i for i,o in enumerate(outcomes) if o.lower()=="yes")
-                yes_p = float(prices[yi])
-            except (StopIteration, ValueError):
-                continue
-            threshold_f = None
-            for pat in [r"(\d+(?:\.\d+)?)\s*°?\s*f\b"]:
-                hit = re.search(pat, q)
-                if hit:
-                    threshold_f = float(hit.group(1)); break
+            yes_p = float(prices[0])  # first outcome is always Yes
+
+            # Parse bounds from title (strip unicode degree symbols)
+            t = title.replace("\u00b0", "").replace("°", "").strip()
+            lo_m = re.match(r"(\d+)\s*F\s+or\s+below", t, re.I)
+            hi_m = re.match(r"(\d+)\s*F\s+or\s+higher", t, re.I)
+            rng_m = re.match(r"(\d+)-(\d+)\s*F", t, re.I)
+
+            if lo_m:
+                ranges.append({"lo": None, "hi": float(lo_m.group(1)), "p": yes_p})
+            elif hi_m:
+                ranges.append({"lo": float(hi_m.group(1)), "hi": None, "p": yes_p})
+            elif rng_m:
+                ranges.append({"lo": float(rng_m.group(1)), "hi": float(rng_m.group(2)), "p": yes_p})
+
+        if not ranges:
+            return []
+
+        # Normalize probabilities to sum to 1 (market prices may not be perfectly calibrated)
+        total = sum(r["p"] for r in ranges)
+        if total > 0:
+            for r in ranges:
+                r["p"] /= total
+
+        # Build cumulative P(temp >= T) for each lower range boundary
+        # P(temp >= T) = sum of p for all ranges where lo >= T
+        result = []
+        boundaries = sorted({r["lo"] for r in ranges if r["lo"] is not None})
+        for T in boundaries:
+            cum_p = sum(r["p"] for r in ranges if r["lo"] is not None and r["lo"] >= T)
             result.append({
                 "source":      "Polymarket",
-                "title":       m.get("question",""),
-                "ticker":      m.get("conditionId",""),
-                "threshold_f": threshold_f,
-                "threshold_c": f_to_c(threshold_f) if threshold_f else None,
-                "yes_prob":    round(yes_p, 4),
-                "url":         f"https://polymarket.com/event/{m.get('slug','')}" if m.get("slug") else "",
+                "title":       f"High temp >= {T:.0f}°F",
+                "ticker":      slug,
+                "threshold_f": T,
+                "threshold_c": f_to_c(T),
+                "yes_prob":    round(cum_p, 4),
+                "url":         url,
             })
         return result
     except Exception:
@@ -873,15 +906,16 @@ def main():
             forecasts = forecast_7days(reg_models, error_pcts, df_raw)
             history   = get_history(df_raw)
 
-            # 3. Markten ophalen
-            markets = fetch_kalshi_markets(city.get("kalshi"), tomorrow)
+            # 3. Markten ophalen (Polymarket primair, Kalshi als fallback)
+            markets = fetch_polymarket_markets(city.get("polymarket"), tomorrow)
             if not markets:
-                markets = fetch_polymarket_markets(city["name"], tomorrow)
+                markets = fetch_kalshi_markets(city.get("kalshi"), tomorrow)
 
             # 4. Classificatiemodellen (per marktdrempel + extra drempels voor slider)
             classifiers_summary = []
             if markets:
-                print(f"  | {len(markets)} Kalshi-markten", end="", flush=True)
+                src = markets[0].get("source", "market")
+                print(f"  | {len(markets)} {src}-markten", end="", flush=True)
             for m in markets:
                 thresh = m.get("threshold_c")
                 if thresh is None: continue
@@ -893,8 +927,8 @@ def main():
                     m["model_brier"]    = clf["brier"]
                     classifiers_summary.append({"threshold_c": thresh, "prob": prob, "skill": clf["skill"]})
 
-            # Extra slider-drempels voor steden met Kalshi
-            if city.get("kalshi"):
+            # Extra slider-drempels voor steden met markets
+            if city.get("polymarket") or city.get("kalshi"):
                 med1  = forecasts[0]["med"]
                 rmse1 = error_pcts[1]["rmse"]
                 for i in range(-5, 6):
