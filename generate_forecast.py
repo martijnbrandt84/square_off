@@ -548,6 +548,26 @@ header{padding:40px 0 28px;display:flex;align-items:center;gap:36px;flex-wrap:wr
 .data-note{font-size:.68rem;color:var(--muted);padding:12px 20px;border-top:1px solid var(--border);line-height:1.6;background:rgba(68,255,170,.03)}
 .data-note b{color:var(--green)}
 
+/* Heatmaps */
+.heatmaps-section{margin-bottom:36px}
+.heatmaps-row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.heatmap-card{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.heatmap-title{padding:14px 20px 10px;font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+.heatmap-body{overflow-x:auto;padding:8px 0}
+.hm-row{display:flex;align-items:center;gap:6px;padding:5px 16px}
+.hm-row:not(:last-child){border-bottom:1px solid rgba(255,255,255,.04)}
+.hm-label{min-width:90px;font-size:.78rem;font-weight:600;color:var(--text);flex-shrink:0}
+.hm-cells{display:flex;gap:3px;flex-wrap:nowrap}
+.hm-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;width:50px;height:50px;border-radius:8px;cursor:default;transition:transform .12s;flex-shrink:0}
+.hm-cell:hover{transform:scale(1.1);z-index:1;position:relative}
+.hm-cell-val{font-family:'Bebas Neue',sans-serif;font-size:.95rem;letter-spacing:.5px;color:#fff;line-height:1}
+.hm-cell-th{font-size:.52rem;color:rgba(255,255,255,.65);margin-top:3px}
+.hm-empty{background:rgba(255,255,255,.03)!important}
+.hm-empty .hm-cell-val{color:var(--muted)}
+.hm-legend{display:flex;align-items:center;gap:8px;padding:10px 16px 14px;font-size:.6rem;color:var(--muted)}
+.hm-legend-bar{flex:1;height:8px;border-radius:4px}
+@media(max-width:900px){.heatmaps-row{grid-template-columns:1fr}}
+
 /* Day cards */
 .hero-section{margin-bottom:32px}
 .conf-statement{font-size:.78rem;color:var(--muted2);margin-bottom:18px;line-height:1.6;padding:11px 16px;background:rgba(124,68,255,.07);border:1px solid rgba(124,68,255,.18);border-radius:8px}
@@ -636,6 +656,30 @@ footer b{color:var(--muted2)}
     <div class="meta-stat"><div class="val val-acc" id="meta-mae">—</div><div class="lbl">Day+1 MAE</div></div>
   </div>
 </header>
+
+<section class="heatmaps-section">
+  <div class="section-title"><span class="dot"></span>Market heatmaps — probability &amp; model edge per threshold</div>
+  <div class="heatmaps-row">
+    <div class="heatmap-card">
+      <div class="heatmap-title">Market probability — P(high temp &ge; T)</div>
+      <div class="heatmap-body" id="heatmap-prob"></div>
+      <div class="hm-legend">
+        <span>0%</span>
+        <div class="hm-legend-bar" style="background:linear-gradient(90deg,hsl(210,80%,30%),hsl(150,70%,35%),hsl(60,80%,40%),hsl(20,85%,40%),hsl(0,80%,40%)"></div>
+        <span>100%</span>
+      </div>
+    </div>
+    <div class="heatmap-card">
+      <div class="heatmap-title">Edge — model vs market (pp)</div>
+      <div class="heatmap-body" id="heatmap-edge"></div>
+      <div class="hm-legend">
+        <span>BUY NO</span>
+        <div class="hm-legend-bar" style="background:linear-gradient(90deg,hsl(210,80%,35%),rgba(255,255,255,.06),hsl(30,85%,40%))"></div>
+        <span>BUY YES</span>
+      </div>
+    </div>
+  </div>
+</section>
 
 <section class="edge-section">
   <div class="section-title"><span class="dot"></span>Market edge board — sorted by model vs market discrepancy</div>
@@ -758,6 +802,52 @@ function renderEdgeBoard(){
   board.innerHTML=header+rows+note;
 }
 
+function hmProbColor(p){
+  // 0%=deep blue → 50%=green → 100%=hot red
+  const h=Math.round(210-(210*p));
+  const s=70+Math.round(p*10);
+  const l=28+Math.round(p*14);
+  return `hsla(${h},${s}%,${l}%,0.88)`;
+}
+function hmEdgeColor(e){
+  if(Math.abs(e)<0.01)return'rgba(255,255,255,.05)';
+  const abs=Math.min(Math.abs(e)/0.30,1);
+  const alpha=0.25+abs*0.70;
+  if(e>0)return`hsla(28,${60+abs*30}%,${30+abs*18}%,${alpha.toFixed(2)})`;
+  return`hsla(210,${60+abs*30}%,${28+abs*18}%,${alpha.toFixed(2)})`;
+}
+
+function renderHeatmaps(){
+  const cities=Object.entries(DATA)
+    .map(([city,d])=>({city,markets:(d.markets||[]).filter(m=>m.yes_prob!=null&&m.threshold_f!=null)}))
+    .filter(c=>c.markets.length>0);
+  if(!cities.length)return;
+
+  ['prob','edge'].forEach(mode=>{
+    const el=document.getElementById('heatmap-'+mode);
+    if(!el)return;
+    const rows=cities.map(({city,markets})=>{
+      const sorted=[...markets].sort((a,b)=>a.threshold_f-b.threshold_f);
+      const cells=sorted.map(m=>{
+        if(mode==='prob'){
+          const col=hmProbColor(m.yes_prob);
+          const lbl=`${Math.round(m.yes_prob*100)}%`;
+          return`<div class="hm-cell" style="background:${col}" title="${m.title||''}"><span class="hm-cell-val">${lbl}</span><span class="hm-cell-th">${m.threshold_f}°F</span></div>`;
+        } else {
+          const mp=m.model_prob_clf??m.model_prob;
+          if(mp==null)return`<div class="hm-cell hm-empty" title="no model"><span class="hm-cell-val">—</span><span class="hm-cell-th">${m.threshold_f}°F</span></div>`;
+          const e=mp-m.yes_prob;
+          const col=hmEdgeColor(e);
+          const lbl=`${e>=0?'+':''}${Math.round(e*100)}pp`;
+          return`<div class="hm-cell" style="background:${col}" title="Model ${Math.round(mp*100)}% vs Market ${Math.round(m.yes_prob*100)}%"><span class="hm-cell-val">${lbl}</span><span class="hm-cell-th">${m.threshold_f}°F</span></div>`;
+        }
+      }).join('');
+      return`<div class="hm-row"><div class="hm-label">${city}</div><div class="hm-cells">${cells}</div></div>`;
+    }).join('');
+    el.innerHTML=rows;
+  });
+}
+
 function renderDayCards(city,conf){
   const fc=DATA[city].forecast,cfg=CONF[conf];
   document.getElementById('conf-statement').innerHTML=cfg.text;
@@ -865,6 +955,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('footer-source').textContent=sources.join(' / ');
 
   document.getElementById('gen-time').textContent='__GEN_TIME__';
+  renderHeatmaps();
   renderEdgeBoard();
   renderAll();
 });
