@@ -548,11 +548,12 @@ header{padding:40px 0 28px;display:flex;align-items:center;gap:36px;flex-wrap:wr
 .data-note{font-size:.68rem;color:var(--muted);padding:12px 20px;border-top:1px solid var(--border);line-height:1.6;background:rgba(68,255,170,.03)}
 .data-note b{color:var(--green)}
 
+/* Distribution chart */
+.dist-section{margin-bottom:36px}
+
 /* Heatmaps */
 .heatmaps-section{margin-bottom:36px}
-.heatmaps-row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-.heatmap-card{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:16px;overflow:hidden}
-.heatmap-title{padding:14px 20px 10px;font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+.heatmap-card{background:rgba(255,255,255,.02);border:1px solid var(--border)}
 .heatmap-body{overflow-x:auto;padding:8px 0}
 .hm-row{display:flex;align-items:center;gap:6px;padding:5px 16px}
 .hm-row:not(:last-child){border-bottom:1px solid rgba(255,255,255,.04)}
@@ -565,8 +566,6 @@ header{padding:40px 0 28px;display:flex;align-items:center;gap:36px;flex-wrap:wr
 .hm-empty{background:rgba(255,255,255,.03)!important}
 .hm-empty .hm-cell-val{color:var(--muted)}
 .hm-legend{display:flex;align-items:center;gap:8px;padding:10px 16px 14px;font-size:.6rem;color:var(--muted)}
-.hm-legend-bar{flex:1;height:8px;border-radius:4px}
-@media(max-width:900px){.heatmaps-row{grid-template-columns:1fr}}
 
 /* Day cards */
 .hero-section{margin-bottom:32px}
@@ -657,26 +656,21 @@ footer b{color:var(--muted2)}
   </div>
 </header>
 
+<section class="dist-section" id="dist-section" style="display:none">
+  <div class="section-title"><span class="dot"></span>Distribution — market vs model (tomorrow)</div>
+  <div class="chart-card">
+    <div class="chart-inner" id="dist-chart"></div>
+  </div>
+</section>
+
 <section class="heatmaps-section">
-  <div class="section-title"><span class="dot"></span>Market heatmaps — probability &amp; model edge per threshold</div>
-  <div class="heatmaps-row">
-    <div class="heatmap-card">
-      <div class="heatmap-title">Market probability — P(high temp &ge; T)</div>
-      <div class="heatmap-body" id="heatmap-prob"></div>
-      <div class="hm-legend">
-        <span>0%</span>
-        <div class="hm-legend-bar" style="background:linear-gradient(90deg,hsl(210,80%,30%),hsl(150,70%,35%),hsl(60,80%,40%),hsl(20,85%,40%),hsl(0,80%,40%)"></div>
-        <span>100%</span>
-      </div>
-    </div>
-    <div class="heatmap-card">
-      <div class="heatmap-title">Edge — model vs market (pp)</div>
-      <div class="heatmap-body" id="heatmap-edge"></div>
-      <div class="hm-legend">
-        <span>BUY NO</span>
-        <div class="hm-legend-bar" style="background:linear-gradient(90deg,hsl(210,80%,35%),rgba(255,255,255,.06),hsl(30,85%,40%))"></div>
-        <span>BUY YES</span>
-      </div>
+  <div class="section-title"><span class="dot"></span>Edge heatmap — model vs market per city &amp; threshold</div>
+  <div class="heatmap-card" style="border-radius:16px;overflow:hidden">
+    <div class="heatmap-body" id="heatmap-edge"></div>
+    <div class="hm-legend">
+      <span style="color:#5599ff">▼ BUY NO</span>
+      <div class="hm-legend-bar" style="background:linear-gradient(90deg,hsl(210,80%,35%),rgba(255,255,255,.06),hsl(30,85%,40%));margin:0 10px"></div>
+      <span style="color:#ff9944">▲ BUY YES</span>
     </div>
   </div>
 </section>
@@ -802,13 +796,6 @@ function renderEdgeBoard(){
   board.innerHTML=header+rows+note;
 }
 
-function hmProbColor(p){
-  // 0%=deep blue → 50%=green → 100%=hot red
-  const h=Math.round(210-(210*p));
-  const s=70+Math.round(p*10);
-  const l=28+Math.round(p*14);
-  return `hsla(${h},${s}%,${l}%,0.88)`;
-}
 function hmEdgeColor(e){
   if(Math.abs(e)<0.01)return'rgba(255,255,255,.05)';
   const abs=Math.min(Math.abs(e)/0.30,1);
@@ -817,35 +804,83 @@ function hmEdgeColor(e){
   return`hsla(210,${60+abs*30}%,${28+abs*18}%,${alpha.toFixed(2)})`;
 }
 
+// Convert cumulative P(>=T) markets to range probabilities
+function marketToRanges(markets){
+  const s=[...markets].filter(m=>m.yes_prob!=null&&m.threshold_f!=null).sort((a,b)=>a.threshold_f-b.threshold_f);
+  if(!s.length)return[];
+  const ranges=[];
+  // bucket below lowest threshold
+  ranges.push({label:`<${s[0].threshold_f}°F`,mkt:1-s[0].yes_prob,mdl:s[0].model_prob_clf!=null?1-s[0].model_prob_clf:null});
+  // intermediate buckets
+  for(let i=0;i<s.length-1;i++){
+    const lo=s[i].threshold_f,hi=s[i+1].threshold_f;
+    const lbl=hi-lo===2?`${lo}-${lo+1}°F`:`${lo}-${hi}°F`;
+    const mp0=s[i].model_prob_clf,mp1=s[i+1].model_prob_clf;
+    ranges.push({label:lbl,mkt:s[i].yes_prob-s[i+1].yes_prob,mdl:(mp0!=null&&mp1!=null)?mp0-mp1:null});
+  }
+  // bucket above highest threshold
+  const last=s[s.length-1];
+  ranges.push({label:`≥${last.threshold_f}°F`,mkt:last.yes_prob,mdl:last.model_prob_clf??null});
+  return ranges;
+}
+
+function renderDistChart(city){
+  const sec=document.getElementById('dist-section');
+  const markets=(DATA[city].markets||[]);
+  if(!markets.length){sec.style.display='none';return;}
+  const ranges=marketToRanges(markets);
+  if(!ranges.length){sec.style.display='none';return;}
+  sec.style.display='';
+
+  const labels=ranges.map(r=>r.label);
+  const mktY=ranges.map(r=>parseFloat((r.mkt*100).toFixed(1)));
+  const mdlY=ranges.map(r=>r.mdl!=null?parseFloat((r.mdl*100).toFixed(1)):null);
+  const hasModel=mdlY.some(v=>v!=null);
+
+  const traces=[{
+    type:'bar',name:'Polymarket',x:labels,y:mktY,
+    marker:{color:'rgba(68,180,255,0.75)',line:{color:'rgba(68,180,255,1)',width:1}},
+    hovertemplate:'%{x}<br><b>Markt: %{y:.1f}%</b><extra></extra>'
+  }];
+  if(hasModel)traces.push({
+    type:'bar',name:'Model',x:labels,y:mdlY,
+    marker:{color:'rgba(180,100,255,0.75)',line:{color:'rgba(180,100,255,1)',width:1}},
+    hovertemplate:'%{x}<br><b>Model: %{y:.1f}%</b><extra></extra>'
+  });
+
+  Plotly.react('dist-chart',traces,{
+    ...PL,
+    barmode:'group',
+    bargap:0.18,bargroupgap:0.06,
+    yaxis:{...PL.yaxis,title:{text:'Kans (%)',standoff:8,font:{size:10}},ticksuffix:'%'},
+    legend:{font:{size:10,color:'#aab'},bgcolor:'rgba(0,0,0,0)',x:0.01,y:0.99},
+    annotations:[{
+      text:`Discrete kansverdeling van morgen's maximum temperatuur — ${city}`,
+      xref:'paper',yref:'paper',x:0,y:1.08,xanchor:'left',yanchor:'bottom',
+      font:{size:9,color:'rgba(160,160,200,0.6)'},showarrow:false
+    }]
+  },PLcfg);
+}
+
 function renderHeatmaps(){
   const cities=Object.entries(DATA)
     .map(([city,d])=>({city,markets:(d.markets||[]).filter(m=>m.yes_prob!=null&&m.threshold_f!=null)}))
     .filter(c=>c.markets.length>0);
-  if(!cities.length)return;
-
-  ['prob','edge'].forEach(mode=>{
-    const el=document.getElementById('heatmap-'+mode);
-    if(!el)return;
-    const rows=cities.map(({city,markets})=>{
-      const sorted=[...markets].sort((a,b)=>a.threshold_f-b.threshold_f);
-      const cells=sorted.map(m=>{
-        if(mode==='prob'){
-          const col=hmProbColor(m.yes_prob);
-          const lbl=`${Math.round(m.yes_prob*100)}%`;
-          return`<div class="hm-cell" style="background:${col}" title="${m.title||''}"><span class="hm-cell-val">${lbl}</span><span class="hm-cell-th">${m.threshold_f}°F</span></div>`;
-        } else {
-          const mp=m.model_prob_clf??m.model_prob;
-          if(mp==null)return`<div class="hm-cell hm-empty" title="no model"><span class="hm-cell-val">—</span><span class="hm-cell-th">${m.threshold_f}°F</span></div>`;
-          const e=mp-m.yes_prob;
-          const col=hmEdgeColor(e);
-          const lbl=`${e>=0?'+':''}${Math.round(e*100)}pp`;
-          return`<div class="hm-cell" style="background:${col}" title="Model ${Math.round(mp*100)}% vs Market ${Math.round(m.yes_prob*100)}%"><span class="hm-cell-val">${lbl}</span><span class="hm-cell-th">${m.threshold_f}°F</span></div>`;
-        }
-      }).join('');
-      return`<div class="hm-row"><div class="hm-label">${city}</div><div class="hm-cells">${cells}</div></div>`;
+  const el=document.getElementById('heatmap-edge');
+  if(!el||!cities.length){document.querySelector('.heatmaps-section').style.display='none';return;}
+  const rows=cities.map(({city,markets})=>{
+    const sorted=[...markets].sort((a,b)=>a.threshold_f-b.threshold_f);
+    const cells=sorted.map(m=>{
+      const mp=m.model_prob_clf??m.model_prob;
+      if(mp==null)return`<div class="hm-cell hm-empty" title="no model"><span class="hm-cell-val">—</span><span class="hm-cell-th">${m.threshold_f}°F</span></div>`;
+      const e=mp-m.yes_prob;
+      const col=hmEdgeColor(e);
+      const lbl=`${e>=0?'+':''}${Math.round(e*100)}pp`;
+      return`<div class="hm-cell" style="background:${col}" title="${city}: Model ${Math.round(mp*100)}% vs Markt ${Math.round(m.yes_prob*100)}% @ ${m.threshold_f}°F"><span class="hm-cell-val">${lbl}</span><span class="hm-cell-th">${m.threshold_f}°F</span></div>`;
     }).join('');
-    el.innerHTML=rows;
-  });
+    return`<div class="hm-row"><div class="hm-label">${city}</div><div class="hm-cells">${cells}</div></div>`;
+  }).join('');
+  el.innerHTML=rows;
 }
 
 function renderDayCards(city,conf){
@@ -940,7 +975,7 @@ function renderMeta(city,conf){
   document.getElementById('meta-mae').textContent=`${fc[0].mae.toFixed(2)}°C`;
 }
 
-function renderAll(){renderDayCards(activeCity,activeConf);renderFanChart(activeCity,activeConf);renderLineChart(activeCity,activeConf);renderMeta(activeCity,activeConf);initProbCalc(activeCity);}
+function renderAll(){renderDayCards(activeCity,activeConf);renderFanChart(activeCity,activeConf);renderLineChart(activeCity,activeConf);renderMeta(activeCity,activeConf);initProbCalc(activeCity);renderDistChart(activeCity);}
 
 (function(){const cv=document.getElementById('bgCanvas');if(!cv)return;const ctx=cv.getContext('2d');let W,H,stars=[];function initStars(){stars=Array.from({length:200},()=>({x:Math.random()*W,y:Math.random()*H,r:.25+Math.random()*1.1,phase:Math.random()*Math.PI*2,spd:.004+Math.random()*.013,base:.15+Math.random()*.55}));}function resize(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;initStars();}let t=0,last=0;function frame(now){const dt=Math.min((now-last)/16.67,2.5);last=now;t+=dt;const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#020209');sky.addColorStop(.5,'#050612');sky.addColorStop(1,'#07050f');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);for(const s of stars){const a=s.base*(.5+.5*Math.sin(s.phase+t*s.spd));ctx.fillStyle=`rgba(200,215,255,${a.toFixed(2)})`;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();}requestAnimationFrame(frame);}window.addEventListener('resize',resize);resize();requestAnimationFrame(frame);})();
 
@@ -957,7 +992,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('gen-time').textContent='__GEN_TIME__';
   renderHeatmaps();
   renderEdgeBoard();
-  renderAll();
+  renderAll(); // includes renderDistChart
 });
 </script>
 </body>
